@@ -39,7 +39,7 @@ function formatDateShort(d: Date): string {
   return `${d.getDate()} ${BULAN[d.getMonth()]}`;
 }
 
-function buildWeeks(data: DailyOutput[], bibitKeys: string[]): WeekBucket[] {
+function buildWeeks(data: DailyOutput[], _bibitKeys: string[]): WeekBucket[] {
   // Map tanggal -> DailyOutput
   const dataMap = new Map<string, DailyOutput>();
   for (const d of data) {

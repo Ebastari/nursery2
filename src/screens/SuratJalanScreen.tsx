@@ -535,7 +535,7 @@ export function SuratJalanScreen() {
                 onClick={() => window.print()}
                 className="w-12 !px-0"
               />
-              {navigator.share && (
+              {typeof navigator.share === 'function' && (
                 <Button
                   size="md"
                   variant="secondary"

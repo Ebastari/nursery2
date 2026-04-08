@@ -10,7 +10,7 @@ interface SummaryCardProps {
   delay?: number;
 }
 
-export function SummaryCard({ title, value, subtitle = 'Keluar', color, colorLight, icon, delay = 0 }: SummaryCardProps) {
+export function SummaryCard({ title, value, subtitle = 'Keluar', colorLight, icon, delay = 0 }: SummaryCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16, scale: 0.97 }}

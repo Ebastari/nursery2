@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { X, Send, RotateCcw, Loader2, Sparkles, ChevronDown } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { MENU_OPTIONS, GREETING, processMessage } from './chatbotLogic';
 
 const LOGO = 'https://i.ibb.co.com/xSTT9wJK/download.png';
@@ -70,7 +70,7 @@ export function ChatbotPanel({ onClose }: { onClose: () => void }) {
     inputRef.current?.focus();
   };
 
-  const handleQuickReply = (menuId: string, label: string) => {
+  const handleQuickReply = (_menuId: string, label: string) => {
     handleSend(label);
   };
 
