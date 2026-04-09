@@ -1,283 +1,377 @@
-import { fetchApiData } from '../../data/api';
-import type { ApiRow } from '../../data/api';
+import { fetchApiData, fetchDropdowns } from '../../data/api';
 
-export interface MenuOption {
-  id: string;
-  label: string;
-  icon: string;
+// ── Types ──
+
+export type Step =
+  | 'greeting'
+  | 'action'
+  | 'bibit'
+  | 'jumlah'
+  | 'sumber'
+  | 'tujuan'
+  | 'dibuat_oleh'
+  | 'driver'
+  | 'confirm'
+  | 'submitting'
+  | 'done'
+  | 'ask_print';
+
+export interface FormData {
+  action: 'masuk' | 'keluar' | 'mati' | '';
+  bibit: string;
+  jumlah: string;
+  sumber: string;
+  tujuan: string;
+  dibuatOleh: string;
+  driver: string;
 }
 
-export const MENU_OPTIONS: MenuOption[] = [
-  { id: 'stok', label: 'Total Stok Bibit', icon: '📦' },
-  { id: 'masuk', label: 'Total Bibit Masuk', icon: '📥' },
-  { id: 'keluar', label: 'Total Bibit Keluar', icon: '📤' },
-  { id: 'mati', label: 'Total Bibit Mati', icon: '💀' },
-  { id: 'hari-ini', label: 'Aktivitas Hari Ini', icon: '📅' },
-  { id: '7-hari', label: '7 Hari Terakhir', icon: '📊' },
-  { id: 'sengon', label: 'Stok SENGON POTTING', icon: '🌿' },
-  { id: 'tim', label: 'Perbandingan Tim', icon: '👷' },
-  { id: 'kritis', label: 'Bibit Kritis', icon: '🚨' },
-  { id: 'kinerja', label: 'Ringkasan Kinerja', icon: '🌱' },
-];
+export interface QuickReply {
+  label: string;
+  value: string;
+  variant?: 'primary' | 'danger' | 'default';
+}
+
+export interface DropdownData {
+  bibit: string[];
+  sumber: string[];
+  tujuan: string[];
+  dibuatOleh: string[];
+  driver: string[];
+}
+
+export interface StokMap {
+  [key: string]: number;
+}
+
+// ── Constants ──
 
 export const GREETING =
-  'Halo! Saya **Montana Bibit**, asisten digital nursery PT EBL.\nPilih informasi yang ingin kamu ketahui, atau ketik pertanyaan kamu.';
+  'Selamat datang di **Fast Input** — asisten pencatatan bibit nursery.\n\nSilakan pilih jenis aktivitas yang ingin dicatat:';
+
+export const STEP_LABELS: Record<Step, string> = {
+  greeting: 'Memulai',
+  action: 'Langkah 1 / 7 — Jenis Aktivitas',
+  bibit: 'Langkah 2 / 7 — Jenis Bibit',
+  jumlah: 'Langkah 3 / 7 — Jumlah',
+  sumber: 'Langkah 4 / 7 — Sumber',
+  tujuan: 'Langkah 5 / 7 — Tujuan',
+  dibuat_oleh: 'Langkah 6 / 7 — Pembuat',
+  driver: 'Langkah 7 / 7 — Driver',
+  confirm: 'Konfirmasi Data',
+  submitting: 'Menyimpan data...',
+  done: 'Tersimpan',
+  ask_print: 'Cetak Surat Jalan',
+};
+
+// ── Data loader ──
+
+export async function loadOptions(): Promise<{ options: DropdownData; stokMap: StokMap }> {
+  const [rows, dropdowns] = await Promise.all([fetchApiData(), fetchDropdowns()]);
+  const bibitSet = new Set<string>();
+  const sumberSet = new Set<string>();
+  const tujuanSet = new Set<string>();
+  const stok: StokMap = {};
+
+  for (const r of rows) {
+    if (r.bibit) bibitSet.add(r.bibit.trim());
+    if (r.sumber) sumberSet.add(r.sumber.trim());
+    if (r.tujuan) tujuanSet.add(r.tujuan.trim());
+    const key = r.bibit.trim().toUpperCase();
+    if (!stok[key]) stok[key] = 0;
+    stok[key] += (r.masuk || 0) - (r.keluar || 0) - (r.mati || 0);
+  }
+  for (const k of Object.keys(stok)) {
+    if (stok[k] < 0) stok[k] = 0;
+  }
+
+  return {
+    options: {
+      bibit: [...bibitSet].sort(),
+      sumber: [...sumberSet].sort(),
+      tujuan: [...tujuanSet].sort(),
+      dibuatOleh: dropdowns.dibuatOleh || [],
+      driver: dropdowns.driver || [],
+    },
+    stokMap: stok,
+  };
+}
+
+// ── Helper ──
 
 function fmt(n: number) {
   return n.toLocaleString('id-ID');
 }
 
-function todayStr() {
-  return new Date().toISOString().split('T')[0];
+function stokBadge(stok: number): string {
+  if (stok <= 0) return ' — Habis';
+  if (stok < 1000) return ' — Menipis';
+  return '';
 }
 
-function dateLabel() {
-  return new Date().toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
-}
+// ── Quick reply builders ──
 
-type Rekap = Record<string, { masuk: number; keluar: number; mati: number }>;
-
-function buildRekap(rows: ApiRow[]): Rekap {
-  const r: Rekap = {};
-  for (const row of rows) {
-    const k = row.bibit || 'UNKNOWN';
-    if (!r[k]) r[k] = { masuk: 0, keluar: 0, mati: 0 };
-    r[k].masuk += row.masuk;
-    r[k].keluar += row.keluar;
-    r[k].mati += row.mati;
+export function getQuickReplies(step: Step, options: DropdownData, stokMap: StokMap): QuickReply[] {
+  const common = [
+    { label: '**Input Bibit Manual** (bebas tulis)', value: '__free_input__', variant: 'primary' as const }
+  ];
+  
+  switch (step) {
+    case 'action':
+    case 'greeting':
+      return [
+        ...common,
+        { label: 'Bibit Masuk', value: 'masuk', variant: 'default' },
+        { label: 'Bibit Keluar', value: 'keluar', variant: 'default' },
+        { label: 'Bibit Mati', value: 'mati', variant: 'default' },
+      ];
+    case 'bibit':
+      return options.bibit.map((b) => {
+        const stok = stokMap[b.toUpperCase()] ?? 0;
+        const badge = stokBadge(stok);
+        return { label: `${b}${badge}`, value: b };
+      });
+    case 'sumber':
+      return options.sumber.map((s) => ({ label: s, value: s }));
+    case 'tujuan':
+      return options.tujuan.map((t) => ({ label: t, value: t }));
+    case 'dibuat_oleh':
+      return options.dibuatOleh.map((d) => ({ label: d, value: d }));
+    case 'driver':
+      return options.driver.map((d) => ({ label: d, value: d }));
+    case 'confirm':
+      return [
+        { label: 'Kirim Data', value: 'submit', variant: 'primary' },
+        { label: 'Ulangi', value: 'reset', variant: 'default' },
+      ];
+    case 'ask_print':
+      return [
+        { label: 'Cetak Surat Jalan', value: 'print', variant: 'primary' },
+        { label: 'Input Lagi', value: 'new', variant: 'default' },
+        { label: 'Selesai', value: 'close', variant: 'default' },
+      ];
+    case 'done':
+      return [
+        { label: 'Input Lagi', value: 'new', variant: 'default' },
+      ];
+    default:
+      return [];
   }
-  return r;
 }
 
-function stokLabel(s: number) {
-  if (s <= 0) return '🚨 Habis';
-  if (s < 50) return '⚠️ Menipis';
-  return '✅ Aman';
+// ── Natural Language Parser ──
+export interface ParsedInput {
+  complete: boolean;
+  formData: Partial<FormData>;
+  missing: string[];
+  confidence: number; // 0-1
 }
 
-// ────────────────────────────────
-// Handler per menu
-// ────────────────────────────────
-
-async function handleStok(): Promise<string> {
-  const rows = await fetchApiData();
-  const rekap = buildRekap(rows);
-  const keys = Object.keys(rekap).sort();
-  let total = 0;
-  let lines = keys.map((k) => {
-    const d = rekap[k];
-    const stok = Math.max(0, d.masuk - d.keluar - d.mati);
-    total += stok;
-    return `• **${k}**: ${fmt(stok)} batang ${stokLabel(stok)}`;
-  });
-  return `📦 **Rekap Stok Seluruh Bibit**\n*Update: ${dateLabel()}*\n━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━\n**Total Stok**: ${fmt(total)} batang | ${keys.length} jenis bibit`;
-}
-
-async function handleMasuk(): Promise<string> {
-  const rows = await fetchApiData();
-  const rekap = buildRekap(rows);
-  const keys = Object.keys(rekap).sort();
-  let grandTotal = 0;
-  const lines = keys.map((k) => {
-    grandTotal += rekap[k].masuk;
-    return `• **${k}**: ${fmt(rekap[k].masuk)} batang`;
-  });
-  return `📥 **Total Bibit Masuk (Keseluruhan)**\n*Update: ${dateLabel()}*\n━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━\n**Grand Total Masuk**: ${fmt(grandTotal)} batang`;
-}
-
-async function handleKeluar(): Promise<string> {
-  const rows = await fetchApiData();
-  const rekap = buildRekap(rows);
-  const keys = Object.keys(rekap).sort();
-  let grandTotal = 0;
-  const lines = keys.map((k) => {
-    grandTotal += rekap[k].keluar;
-    return `• **${k}**: ${fmt(rekap[k].keluar)} batang`;
-  });
-  return `📤 **Total Bibit Keluar (Keseluruhan)**\n*Update: ${dateLabel()}*\n━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━\n**Grand Total Keluar**: ${fmt(grandTotal)} batang`;
-}
-
-async function handleMati(): Promise<string> {
-  const rows = await fetchApiData();
-  const rekap = buildRekap(rows);
-  const keys = Object.keys(rekap).sort();
-  let totalMasuk = 0;
-  let totalMati = 0;
-  const lines = keys.map((k) => {
-    const d = rekap[k];
-    totalMasuk += d.masuk;
-    totalMati += d.mati;
-    const pct = d.masuk > 0 ? ((d.mati / d.masuk) * 100).toFixed(1) : '0.0';
-    return `• **${k}**: ${fmt(d.mati)} mati (${pct}% mortalitas)`;
-  });
-  const overall = totalMasuk > 0 ? ((totalMati / totalMasuk) * 100).toFixed(1) : '0.0';
-  return `💀 **Total Bibit Mati & Mortalitas**\n*Update: ${dateLabel()}*\n━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━\n**Total Mati**: ${fmt(totalMati)} batang\n**Mortalitas Keseluruhan**: ${overall}%`;
-}
-
-async function handleHariIni(): Promise<string> {
-  const rows = await fetchApiData();
-  const today = todayStr();
-  const todayRows = rows.filter((r) => r.tanggal === today);
-  if (todayRows.length === 0) {
-    return `📅 **Aktivitas Hari Ini** — ${dateLabel()}\n\nBelum ada data masuk untuk hari ini.\nData terakhir tercatat pada: **${rows.length > 0 ? rows[rows.length - 1].tanggal : '-'}**`;
-  }
-  let totalM = 0, totalK = 0, totalD = 0;
-  const lines = todayRows.map((r) => {
-    totalM += r.masuk; totalK += r.keluar; totalD += r.mati;
-    const aksi = r.keluar > 0 ? `keluar ${fmt(r.keluar)}` : r.masuk > 0 ? `masuk ${fmt(r.masuk)}` : `mati ${fmt(r.mati)}`;
-    return `• **${r.bibit}** — ${aksi} batang${r.tujuan ? ` → ${r.tujuan}` : ''}`;
-  });
-  return `📅 **Aktivitas Hari Ini** — ${dateLabel()}\n━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━\n📥 Masuk: ${fmt(totalM)} | 📤 Keluar: ${fmt(totalK)} | 💀 Mati: ${fmt(totalD)}\n**Total transaksi**: ${todayRows.length} record`;
-}
-
-async function handle7Hari(): Promise<string> {
-  const rows = await fetchApiData();
-  const today = new Date();
-  const days: { date: string; masuk: number; keluar: number; mati: number }[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const ds = d.toISOString().split('T')[0];
-    const dayRows = rows.filter((r) => r.tanggal === ds);
-    const masuk = dayRows.reduce((a, r) => a + r.masuk, 0);
-    const keluar = dayRows.reduce((a, r) => a + r.keluar, 0);
-    const mati = dayRows.reduce((a, r) => a + r.mati, 0);
-    const label = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-    days.push({ date: label, masuk, keluar, mati });
-  }
-  const totalM = days.reduce((a, d) => a + d.masuk, 0);
-  const totalK = days.reduce((a, d) => a + d.keluar, 0);
-  const totalD = days.reduce((a, d) => a + d.mati, 0);
-  const lines = days.map((d) => `• **${d.date}** — 📥 ${fmt(d.masuk)} | 📤 ${fmt(d.keluar)} | 💀 ${fmt(d.mati)}`);
-  return `📊 **Aktivitas 7 Hari Terakhir**\n━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━\n**Total 7 hari**:\n📥 Masuk: ${fmt(totalM)} | 📤 Keluar: ${fmt(totalK)} | 💀 Mati: ${fmt(totalD)}\nRata-rata keluar/hari: **${fmt(Math.round(totalK / 7))}** batang`;
-}
-
-async function handleSengon(): Promise<string> {
-  const rows = await fetchApiData();
-  const sp = rows.filter((r) => r.bibit.toUpperCase().includes('SENGON POTTING'));
-  const masuk = sp.reduce((a, r) => a + r.masuk, 0);
-  const keluar = sp.reduce((a, r) => a + r.keluar, 0);
-  const mati = sp.reduce((a, r) => a + r.mati, 0);
-  const stok = Math.max(0, masuk - keluar - mati);
-
-  const today = new Date();
-  const sevenAgo = new Date(today.getTime() - 7 * 86400000);
-  const recent = sp.filter((r) => { const d = new Date(r.tanggal); return d >= sevenAgo && d <= today; });
-  const keluar7 = recent.reduce((a, r) => a + r.keluar, 0);
-  let avg = Math.round(keluar7 / 7);
-  if (avg <= 0 && keluar > 0 && sp.length > 0) {
-    const first = new Date(sp[0].tanggal);
-    const totalDays = Math.max(1, Math.round((today.getTime() - first.getTime()) / 86400000));
-    avg = Math.round(keluar / totalDays);
-  }
-  if (avg <= 0) avg = 400;
-
-  const daysLeft = avg > 0 && stok > 0 ? Math.ceil(stok / avg) : 0;
-  const predDate = daysLeft > 0
-    ? new Date(Date.now() + daysLeft * 86400000).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })
-    : '-';
-
-  return `🌿 **Detail SENGON POTTING**\n*Update: ${dateLabel()}*\n━━━━━━━━━━━━━━━━━━\n📥 Total Masuk: **${fmt(masuk)}** batang\n📤 Total Keluar: **${fmt(keluar)}** batang\n💀 Total Mati: **${fmt(mati)}** batang\n📦 Sisa Stok: **${fmt(stok)}** batang ${stokLabel(stok)}\n━━━━━━━━━━━━━━━━━━\n📈 **Proyeksi**:\nRata-rata keluar: **${fmt(avg)}** batang/hari\nEstimasi habis: **±${daysLeft} hari** lagi (${predDate})\nTotal transaksi: ${sp.length} record`;
-}
-
-async function handleTim(): Promise<string> {
-  const rows = await fetchApiData();
-  const sp = rows.filter((r) => r.bibit.toUpperCase().includes('SENGON POTTING'));
-  const timData = sp.filter((r) => r.tujuan.toUpperCase().includes('TIM'));
-  const basri = timData.filter((r) => r.tujuan.toUpperCase().includes('BASRI'));
-  const bahran = timData.filter((r) => r.tujuan.toUpperCase().includes('BAHRAN'));
-
-  const totalBasri = basri.reduce((a, r) => a + r.keluar, 0);
-  const totalBahran = bahran.reduce((a, r) => a + r.keluar, 0);
-  const gabungan = totalBasri + totalBahran;
-
-  const pctB = gabungan > 0 ? ((totalBasri / gabungan) * 100).toFixed(1) : '0.0';
-  const pctH = gabungan > 0 ? ((totalBahran / gabungan) * 100).toFixed(1) : '0.0';
-  const avgB = Math.round(totalBasri / (basri.length || 1));
-  const avgH = Math.round(totalBahran / (bahran.length || 1));
-  const diff = gabungan > 0 ? ((Math.abs(totalBasri - totalBahran) / gabungan) * 100).toFixed(1) : '0.0';
-
-  const status = Number(diff) <= 15 ? '✅ Seimbang' : Number(diff) <= 30 ? '⚙️ Cukup Seimbang' : '⚠️ Timpang';
-
-  return `👷 **Perbandingan Tim Lapangan**\n*(SENGON POTTING — Update: ${dateLabel()})*\n━━━━━━━━━━━━━━━━━━\n👷‍♂️ **Tim Basri**:\nTotal Realisasi: **${fmt(totalBasri)}** batang\nRata-rata: **${fmt(avgB)}** batang/hari\nKontribusi: **${pctB}%**\n\n👷‍♂️ **Tim Bahran**:\nTotal Realisasi: **${fmt(totalBahran)}** batang\nRata-rata: **${fmt(avgH)}** batang/hari\nKontribusi: **${pctH}%**\n━━━━━━━━━━━━━━━━━━\n📈 Selisih antar-tim: **${diff}%** — ${status}\nTotal gabungan: **${fmt(gabungan)}** batang`;
-}
-
-async function handleKritis(): Promise<string> {
-  const rows = await fetchApiData();
-  const rekap = buildRekap(rows);
-  const items = Object.entries(rekap)
-    .map(([k, d]) => ({ bibit: k, stok: Math.max(0, d.masuk - d.keluar - d.mati), mortalitas: d.masuk > 0 ? (d.mati / d.masuk) * 100 : 0 }))
-    .filter((x) => x.stok < 50 || x.mortalitas > 10)
-    .sort((a, b) => a.stok - b.stok);
-
-  if (items.length === 0) {
-    return `🚨 **Bibit Kritis**\n\n✅ Tidak ada bibit dalam kondisi kritis saat ini.\nSemua stok dalam keadaan aman.`;
-  }
-
-  const lines = items.map((x) => {
-    const tag = x.stok <= 0 ? '🚨 HABIS' : x.stok < 50 ? '⚠️ MENIPIS' : '⚠️ MORTALITAS TINGGI';
-    return `• **${x.bibit}** — Stok: ${fmt(x.stok)} | Mortalitas: ${x.mortalitas.toFixed(1)}% — ${tag}`;
-  });
-
-  return `🚨 **Bibit Kritis — Perlu Perhatian**\n*Update: ${dateLabel()}*\n━━━━━━━━━━━━━━━━━━\n${lines.join('\n')}\n━━━━━━━━━━━━━━━━━━\n**${items.length} jenis bibit** dalam kondisi kritis.`;
-}
-
-async function handleKinerja(): Promise<string> {
-  const rows = await fetchApiData();
-  const totalMasuk = rows.reduce((a, r) => a + r.masuk, 0);
-  const totalKeluar = rows.reduce((a, r) => a + r.keluar, 0);
-  const totalMati = rows.reduce((a, r) => a + r.mati, 0);
-  const totalHidup = totalMasuk - totalMati;
-  const sr = totalMasuk > 0 ? (totalHidup / totalMasuk) * 100 : 100;
-  const rp = totalMasuk > 0 ? (totalKeluar / totalMasuk) * 100 : 0;
-
-  const efisiensi = sr >= 97 && rp >= 90 ? '✅ Sangat Baik' : sr >= 90 && rp >= 80 ? '⚙️ Stabil' : '⚠️ Perlu Evaluasi';
-
-  const rekap = buildRekap(rows);
-  const top5 = Object.entries(rekap)
-    .map(([k, d]) => ({ bibit: k, stok: Math.max(0, d.masuk - d.keluar - d.mati) }))
-    .sort((a, b) => b.stok - a.stok)
-    .slice(0, 5);
-
-  const topLines = top5.map((x, i) => `${i + 1}. **${x.bibit}**: ${fmt(x.stok)} batang`);
-
-  return `🌱 **Ringkasan Kinerja Nursery**\n*Update: ${dateLabel()}*\n━━━━━━━━━━━━━━━━━━\n📥 Bibit Masuk: **${fmt(totalMasuk)}** batang\n📤 Bibit Keluar: **${fmt(totalKeluar)}** batang\n💀 Bibit Mati: **${fmt(totalMati)}** batang\n🌿 Bibit Hidup: **${fmt(totalHidup)}** batang\n━━━━━━━━━━━━━━━━━━\n📈 Persentase Hidup: **${sr.toFixed(1)}%**\n📈 Realisasi Penyerapan: **${rp.toFixed(1)}%**\n🏆 Status Efisiensi: **${efisiensi}**\n━━━━━━━━━━━━━━━━━━\n🏅 **Top 5 Stok Tertinggi**:\n${topLines.join('\n')}\n\nTotal data: ${rows.length} record | ${Object.keys(rekap).length} jenis bibit`;
-}
-
-const HANDLERS: Record<string, () => Promise<string>> = {
-  stok: handleStok,
-  masuk: handleMasuk,
-  keluar: handleKeluar,
-  mati: handleMati,
-  'hari-ini': handleHariIni,
-  '7-hari': handle7Hari,
-  sengon: handleSengon,
-  tim: handleTim,
-  kritis: handleKritis,
-  kinerja: handleKinerja,
-};
-
-export async function processMessage(text: string): Promise<string> {
+export function parseFreeInput(text: string, options: DropdownData, stokMap: StokMap): ParsedInput | null {
   const lower = text.toLowerCase().trim();
+  
+  // Keywords
+  const actionMatch = lower.match(/(input|catat|masuk[kan]?|keluar|mati)/);
+  const rawAction = actionMatch?.[1] || '';
+  const actionMap: Record<string, FormData['action']> = {
+    'masuk': 'masuk', 
+    'masukkan': 'masuk', 
+    'input': 'masuk', 
+    'keluar': 'keluar',
+    'mati': 'mati', 
+    'catat': 'masuk'
+  };
+  const action = actionMap[rawAction] || '';
 
-  // match by menu id
-  for (const opt of MENU_OPTIONS) {
-    if (lower === opt.id || lower === opt.label.toLowerCase()) {
-      return HANDLERS[opt.id]();
+  // Numbers
+  const numMatch = lower.match(/(\d+(?:\.\d+)?)/);
+  const jumlah = numMatch ? numMatch[1] : '';
+  
+  // Bibit - match against whitelist (fuzzy), check stok
+  let bibit = '';
+  for (const b of options.bibit) {
+    if (lower.includes(b.toLowerCase()) || lower.includes(b.toLowerCase().replace(/ /g, ''))) {
+      bibit = b;
+      // Verify has stock if using stokMap
+      const hasStock = stokMap[b.toUpperCase()] ?? 0 > 0;
+      if (!hasStock) console.warn(`Low stock warning for bibit: ${b}`);
+      break;
     }
   }
+  
+  // Named fields
+  const sumberMatch = lower.match(/(?:dari|sumber|asal)\s*([^\s,.;]+(?:\s+[^\s,.;]+)?)/i);
+  const tujuanMatch = lower.match(/(?:ke|tujuan)\s*([^\s,.;]+(?:\s+[^\s,.;]+)?)/i);
+  const dibuatMatch = lower.match(/(?:oleh|dibuat)\s*([^\s,.;]+(?:\s+[^\s,.;]+)?)/i);
+  const driverMatch = lower.match(/(?:driver|sopir)\s*([^\s,.;]+)/i);
+  
+  const parsed: Partial<FormData> = {
+    action,
+    bibit,
+    jumlah,
+    sumber: sumberMatch?.[1]?.trim() || '',
+    tujuan: tujuanMatch?.[1]?.trim() || '',
+    dibuatOleh: dibuatMatch?.[1]?.trim() || '',
+    driver: driverMatch?.[1]?.trim() || ''
+  };
+  
+  // Count filled fields
+  const filledCount = Object.values(parsed).filter(Boolean).length;
+  const confidence = filledCount / 7; // 7 main fields
+  
+  const required = ['action', 'bibit', 'jumlah'];
+  const missing = required.filter(field => !parsed[field as keyof typeof parsed]);
+  
+  return {
+    complete: confidence >= 0.8 && missing.length === 0,
+    formData: parsed,
+    missing,
+    confidence: Math.round(confidence * 100) / 100
+  };
+}
 
-  // keyword matching
-  if (lower.includes('stok') && !lower.includes('sengon')) return HANDLERS.stok();
-  if (lower.includes('masuk')) return HANDLERS.masuk();
-  if (lower.includes('keluar') && !lower.includes('sengon')) return HANDLERS.keluar();
-  if (lower.includes('mati') || lower.includes('mortalitas')) return HANDLERS.mati();
-  if (lower.includes('hari ini') || lower.includes('today')) return HANDLERS['hari-ini']();
-  if (lower.includes('7 hari') || lower.includes('minggu') || lower.includes('tren')) return HANDLERS['7-hari']();
-  if (lower.includes('sengon') || lower.includes('potting')) return HANDLERS.sengon();
-  if (lower.includes('tim') || lower.includes('basri') || lower.includes('bahran')) return HANDLERS.tim();
-  if (lower.includes('kritis') || lower.includes('habis') || lower.includes('warning')) return HANDLERS.kritis();
-  if (lower.includes('kinerja') || lower.includes('ringkasan') || lower.includes('performa')) return HANDLERS.kinerja();
+// ── Step processor — returns bot message and next step ──
 
-  return 'Maaf, saya belum mengerti pertanyaan itu. 🤔\nSilakan pilih salah satu menu di bawah, atau ketik kata kunci seperti **stok**, **masuk**, **keluar**, **mati**, **hari ini**, **sengon**, **tim**, **kritis**, atau **kinerja**.';
+export function processStep(
+  step: Step,
+  value: string,
+  formData: FormData,
+  stokMap: StokMap,
+): { message: string; nextStep: Step; updatedForm: Partial<FormData> } | null {
+  switch (step) {
+    case 'action': {
+      const map: Record<string, FormData['action']> = { masuk: 'masuk', keluar: 'keluar', mati: 'mati' };
+      const action = map[value];
+      if (!action) return null;
+
+      const labels = { masuk: 'Bibit Masuk', keluar: 'Bibit Keluar', mati: 'Bibit Mati' };
+      return {
+        message: `**${labels[action]}** — dicatat.\n\nPilih jenis bibit:`,
+        nextStep: 'bibit',
+        updatedForm: { action },
+      };
+    }
+
+    case 'bibit': {
+      const stok = stokMap[value.toUpperCase()] ?? 0;
+      const stokInfo = `Stok saat ini: **${fmt(stok)}** bibit`;
+      return {
+        message: `Bibit: **${value}**\n${stokInfo}\n\nMasukkan jumlah:`,
+        nextStep: 'jumlah',
+        updatedForm: { bibit: value },
+      };
+    }
+
+    case 'jumlah': {
+      const num = parseInt(value);
+      if (isNaN(num) || num <= 0) return null;
+
+      let warning = '';
+      if (formData.action === 'keluar' || formData.action === 'mati') {
+        const stok = stokMap[formData.bibit.toUpperCase()] ?? 0;
+        if (num > stok) {
+          warning = `\n\n**Perhatian:** Jumlah melebihi stok tersedia (${fmt(stok)}).`;
+        }
+      }
+
+      return {
+        message: `Jumlah: **${fmt(num)}** bibit${warning}\n\nPilih sumber / asal bibit:`,
+        nextStep: 'sumber',
+        updatedForm: { jumlah: String(num) },
+      };
+    }
+
+    case 'sumber': {
+      if (formData.action === 'keluar') {
+        return {
+          message: `Sumber: **${value}**\n\nPilih tujuan distribusi:`,
+          nextStep: 'tujuan',
+          updatedForm: { sumber: value },
+        };
+      }
+      // masuk/mati — skip to confirm
+      return {
+        message: `Sumber: **${value}**\n\n${buildSummary({ ...formData, sumber: value })}`,
+        nextStep: 'confirm',
+        updatedForm: { sumber: value },
+      };
+    }
+
+    case 'tujuan': {
+      return {
+        message: `Tujuan: **${value}**\n\nPilih nama pembuat dokumen:`,
+        nextStep: 'dibuat_oleh',
+        updatedForm: { tujuan: value },
+      };
+    }
+
+    case 'dibuat_oleh': {
+      return {
+        message: `Dibuat oleh: **${value}**\n\nPilih driver / pengantar:`,
+        nextStep: 'driver',
+        updatedForm: { dibuatOleh: value },
+      };
+    }
+
+    case 'driver': {
+      const updated = { ...formData, driver: value };
+      return {
+        message: `Driver: **${value}**\n\n${buildSummary(updated)}`,
+        nextStep: 'confirm',
+        updatedForm: { driver: value },
+      };
+    }
+
+    default:
+      return null;
+  }
+}
+
+// ── Summary builder ──
+
+function buildSummary(data: FormData): string {
+  const labels = { masuk: 'Bibit Masuk', keluar: 'Bibit Keluar', mati: 'Bibit Mati' };
+  const jumlah = fmt(Number(data.jumlah));
+
+  let text = '━━━━━━━━━━━━━━━━━━\n';
+  text += '**Ringkasan Data**\n\n';
+  text += `Aktivitas: **${labels[data.action as keyof typeof labels] || '-'}**\n`;
+  text += `Bibit: **${data.bibit}**\n`;
+  text += `Jumlah: **${jumlah}** bibit\n`;
+  text += `Sumber: **${data.sumber || '-'}**\n`;
+
+  if (data.action === 'keluar') {
+    text += `Tujuan: **${data.tujuan || '-'}**\n`;
+    text += `Dibuat oleh: **${data.dibuatOleh || '-'}**\n`;
+    text += `Driver: **${data.driver || '-'}**\n`;
+  }
+
+  text += '━━━━━━━━━━━━━━━━━━\n';
+  text += 'Periksa data di atas. Jika sudah benar, tekan **Kirim Data**.';
+  return text;
+}
+
+// ── After-submit messages ──
+
+export function getSuccessMessage(formData: FormData): string {
+  const jumlah = fmt(Number(formData.jumlah));
+  const labels = { masuk: 'Bibit Masuk', keluar: 'Bibit Keluar', mati: 'Bibit Mati' };
+  const label = labels[formData.action as keyof typeof labels] || '-';
+
+  let msg = '**Data berhasil disimpan.**\n\n';
+  msg += `${label} — ${formData.bibit} — ${jumlah} bibit\n`;
+  msg += 'Notifikasi WhatsApp telah dikirim ke grup admin.';
+
+  if (formData.action === 'keluar' && Number(formData.jumlah) > 0) {
+    msg += '\n\nApakah Anda ingin mencetak **Surat Jalan** untuk distribusi ini?';
+  }
+
+  return msg;
+}
+
+export function getSuccessStep(formData: FormData): Step {
+  if (formData.action === 'keluar' && Number(formData.jumlah) > 0) {
+    return 'ask_print';
+  }
+  return 'done';
 }

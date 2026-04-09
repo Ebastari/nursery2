@@ -1,9 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Share2, Printer, Eye, Send } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Printer, Eye, Send, CheckCircle, Shield } from 'lucide-react';
 import { Button } from '../components/Button';
+import { Badge } from '../components/Badge';
 import { fetchApiData } from '../data/api';
 import type { ApiRow } from '../data/api';
+import { useStore } from '../store/useStore';
+import { ApprovalModal } from '../components/ApprovalModal';
 import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 
@@ -46,6 +49,15 @@ export function SuratJalanScreen() {
   const [generating, setGenerating] = useState(false);
   const [isDraft, setIsDraft] = useState(true);
   const [kodeVerifikasi, setKodeVerifikasi] = useState<string>('');
+  const [showAdminModal, setShowAdminModal] = useState(false);
+
+  const { isAdmin, approvals, approveSuratJalan } = useStore();
+
+  const getApprovalStatus = useCallback(() => {
+    if (!row) return null;
+    const nomorSurat = generateNomorSurat(row, rowIndex);
+    return approvals.find((a) => a.nomorSurat === nomorSurat);
+  }, [row, rowIndex, approvals]);
 
   // Load data
   useEffect(() => {
@@ -66,6 +78,8 @@ export function SuratJalanScreen() {
           tujuan: searchParams.get('tujuan') || '-',
           statusKirim: '',
           kodeVerifikasi: 'PREVIEW',
+          dibuatOleh: searchParams.get('dibuatOleh') || '-',
+          driver: searchParams.get('driver') || '-',
         };
         setRow(formRow);
         setKodeVerifikasi('PREVIEW');
@@ -135,6 +149,8 @@ export function SuratJalanScreen() {
 
   const nomorSurat = generateNomorSurat(row, rowIndex);
   const stokSetelah = getStokBibit(row.bibit);
+  const approval = getApprovalStatus();
+  const isApproved = approval?.status === 'approved';
 
   // === PDF Generation (shared: draft or final) ===
   const generatePDF = async (draft: boolean) => {
@@ -244,8 +260,9 @@ export function SuratJalanScreen() {
 
       // Signature section
       const sigW = contentW / 3;
-      const sigLabels = ['Dibuat oleh', 'Dikirim oleh', 'Diterima oleh'];
-      const sigRoles = ['Petugas Nursery', 'Sopir / Kurir', 'Penerima Lapangan'];
+      const sigLabels = ['Dibuat oleh', 'PJ Nursery', 'Driver'];
+      const sigNames = [row.dibuatOleh || '-', '', row.driver || '-'];
+      const sigRoles = ['Petugas Nursery', 'Penanggung Jawab', 'Sopir / Kurir'];
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
@@ -260,7 +277,15 @@ export function SuratJalanScreen() {
       for (let i = 0; i < 3; i++) {
         const cx = margin + sigW * i + sigW / 2;
         doc.line(cx - 18, y, cx + 18, y);
-        doc.text(sigRoles[i], cx, y + 5, { align: 'center' });
+        if (sigNames[i] && sigNames[i] !== '-') {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.text(sigNames[i], cx, y + 4, { align: 'center' });
+          doc.setFont('helvetica', 'normal');
+          doc.text(sigRoles[i], cx, y + 8, { align: 'center' });
+        } else {
+          doc.text(sigRoles[i], cx, y + 5, { align: 'center' });
+        }
       }
       y += 16;
 
@@ -298,7 +323,6 @@ export function SuratJalanScreen() {
         doc.setFontSize(120);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(220, 38, 38);
-        // Rotate text diagonally across page
         const centerX = pageW / 2;
         const centerY = pageH / 2;
         doc.text('DRAFT', centerX, centerY, {
@@ -306,6 +330,19 @@ export function SuratJalanScreen() {
           angle: 45,
         });
         doc.restoreGraphicsState();
+      }
+
+      // === APPROVAL SIGNATURE ===
+      if (isApproved && approval) {
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(5, 150, 105);
+        doc.text('✓ DISAHKAN', pageW - margin, y - 8, { align: 'right' });
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(80, 80, 80);
+        doc.text(`Disetujui oleh: ${approval.approvedBy}`, pageW - margin, y - 2, { align: 'right' });
+        doc.text(`Tanggal: ${new Date(approval.approvedAt!).toLocaleDateString('id-ID')}`, pageW - margin, y + 3, { align: 'right' });
       }
 
       const prefix = draft ? 'DRAFT-' : '';
@@ -436,17 +473,22 @@ export function SuratJalanScreen() {
 
           {/* Signature section */}
           <div className="grid grid-cols-3 gap-2 pt-2">
-            {['Dibuat oleh', 'Dikirim oleh', 'Diterima oleh'].map((label) => (
-              <div key={label} className="text-center space-y-8">
-                <p className="text-[10px] font-semibold text-gray-700">{label}</p>
+            {[
+              { label: 'Dibuat oleh', name: row.dibuatOleh || '', role: 'Petugas Nursery' },
+              { label: 'PJ Nursery', name: '', role: 'Penanggung Jawab' },
+              { label: 'Driver', name: row.driver || '', role: 'Sopir / Kurir' },
+            ].map((sig) => (
+              <div key={sig.label} className="text-center space-y-8">
+                <p className="text-[10px] font-semibold text-gray-700">{sig.label}</p>
                 <div className="border-b border-gray-400 mx-2" />
-                <p className="text-[9px] text-gray-400 -mt-6">
-                  {label === 'Dibuat oleh'
-                    ? 'Petugas Nursery'
-                    : label === 'Dikirim oleh'
-                      ? 'Sopir / Kurir'
-                      : 'Penerima Lapangan'}
-                </p>
+                {sig.name && sig.name !== '-' ? (
+                  <>
+                    <p className="text-[10px] font-bold text-gray-800 -mt-6">{sig.name}</p>
+                    <p className="text-[9px] text-gray-400 -mt-7">{sig.role}</p>
+                  </>
+                ) : (
+                  <p className="text-[9px] text-gray-400 -mt-6">{sig.role}</p>
+                )}
               </div>
             ))}
           </div>
@@ -484,6 +526,29 @@ export function SuratJalanScreen() {
         <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-300">
           <Eye className="w-4 h-4 text-amber-600" />
           <span className="text-sm font-semibold text-amber-800">Mode Draft — Review sebelum kirim</span>
+        </div>
+      )}
+
+      {/* Approval Status */}
+      {isApproved && approval && (
+        <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 border border-green-300">
+          <CheckCircle className="w-4 h-4 text-green-600" />
+          <span className="text-sm font-semibold text-green-800">
+            Approved by {approval.approvedBy} — {new Date(approval.approvedAt!).toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </span>
+        </div>
+      )}
+
+      {/* Admin/Approval button for non-approved docs */}
+      {!isApproved && isDraft && (
+        <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-200">
+          <Shield className="w-4 h-4 text-gray-600" />
+          <button
+            onClick={() => setShowAdminModal(true)}
+            className="text-sm font-semibold text-gray-700 hover:text-emerald-600 transition-colors"
+          >
+            Approve Dokumen
+          </button>
         </div>
       )}
 
@@ -547,7 +612,17 @@ export function SuratJalanScreen() {
             </div>
           </div>
         )}
+
       </div>
+      <ApprovalModal
+        isOpen={showAdminModal}
+        onClose={() => setShowAdminModal(false)}
+        onSuccess={() => {
+          if (row) {
+            approveSuratJalan(nomorSurat, 'Admin');
+          }
+        }}
+      />
     </div>
   );
 }

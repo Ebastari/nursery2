@@ -1,19 +1,27 @@
 import { useState, useEffect, useMemo } from 'react';
+import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/useStore';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Input, Select } from '../components/Input';
-import { CheckCircle, Plus, AlertTriangle, FileText } from 'lucide-react';
+import { CheckCircle, Plus, AlertTriangle, FileText, WifiOff } from 'lucide-react';
 import { fetchApiData } from '../data/api';
+import { fetchDropdowns } from '../data/api';
 import type { ApiRow } from '../data/api';
+import { useOnlineStatus } from '../data/useOnlineStatus';
 
 export function QuickInputScreen() {
+    // State untuk mode input: 'chatbot' | 'manual' | null
+    const [inputMode, setInputMode] = useState<null | 'chatbot' | 'manual'>(null);
   const navigate = useNavigate();
-  const { plants, submitting, submitActivity, fetchPlants } = useStore();
+  const { plants, submitting, submitActivity, fetchPlants, inputForm: form, setInputForm, resetInputForm } = useStore();
   const [submitted, setSubmitted] = useState(false);
+  const isOnline = useOnlineStatus();
   const [sumberOptions, setSumberOptions] = useState<{ value: string; label: string }[]>([]);
   const [tujuanOptions, setTujuanOptions] = useState<{ value: string; label: string }[]>([]);
+  const [dibuatOlehOptions, setDibuatOlehOptions] = useState<{ value: string; label: string }[]>([]);
+  const [driverOptions, setDriverOptions] = useState<{ value: string; label: string }[]>([]);
   const [apiRows, setApiRows] = useState<ApiRow[]>([]);
 
   useEffect(() => {
@@ -31,6 +39,10 @@ export function QuickInputScreen() {
       }
       setSumberOptions([...sumberSet].sort().map((s) => ({ value: s, label: s })));
       setTujuanOptions([...tujuanSet].sort().map((s) => ({ value: s, label: s })));
+    });
+    fetchDropdowns().then((opts) => {
+      setDibuatOlehOptions(opts.dibuatOleh.map((s) => ({ value: s, label: s })));
+      setDriverOptions(opts.driver.map((s) => ({ value: s, label: s })));
     });
   }, []);
 
@@ -55,20 +67,8 @@ export function QuickInputScreen() {
     [plants],
   );
 
-  const today = new Date().toISOString().split('T')[0];
-
-  const [form, setForm] = useState({
-    tanggal: today,
-    bibit: '',
-    masuk: '',
-    keluar: '',
-    mati: '',
-    sumber: '',
-    tujuan: '',
-  });
-
   const handleChange = (field: string, value: string) => {
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setInputForm({ [field]: value });
   };
 
   // Stok saat ini untuk bibit yang dipilih
@@ -88,11 +88,13 @@ export function QuickInputScreen() {
       mati: Number(form.mati) || 0,
       sumber: form.sumber,
       tujuan: form.tujuan,
+      dibuatOleh: form.dibuatOleh,
+      driver: form.driver,
     });
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
-      setForm({ tanggal: today, bibit: '', masuk: '', keluar: '', mati: '', sumber: '', tujuan: '' });
+      resetInputForm();
     }, 2000);
   };
 
@@ -108,128 +110,190 @@ export function QuickInputScreen() {
     );
   }
 
+
+  // Import Fast Input Panel (ChatbotPanel)
+  // NOTE: Import di atas file: import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
+  // Render di sini, di atas form manual
+  // Hilangkan floating button di halaman ini
+
   return (
     <div className="fade-in space-y-4 pb-24">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Input Cepat</h1>
-        <p className="text-sm text-gray-500">Catat aktivitas bibit hari ini</p>
+        <h1 className="text-xl font-bold text-gray-900">Input Aktivitas Bibit</h1>
+        <p className="text-sm text-gray-500">Pilih metode input yang diinginkan</p>
       </div>
 
-      <Card className="space-y-4">
-        <Input
-          label="Tanggal"
-          type="date"
-          value={form.tanggal}
-          onChange={(e) => handleChange('tanggal', e.target.value)}
-        />
-
-        <Select
-          label="Jenis Bibit"
-          options={plantOptions}
-          value={form.bibit}
-          onChange={(e) => handleChange('bibit', e.target.value)}
-        />
-
-        {form.bibit && currentStok !== null && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
-            <span className="text-sm text-blue-700">
-              📦 Stok <strong>{form.bibit}</strong> saat ini: <strong>{currentStok.toLocaleString('id-ID')}</strong> bibit
-            </span>
-          </div>
-        )}
-
-        {form.bibit && currentStok === 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-            <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-            <span className="text-sm text-red-700">Stok <strong>{form.bibit}</strong> sudah habis!</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-3">
-          <Input
-            label="Masuk"
-            type="number"
-            inputMode="numeric"
-            placeholder="0"
-            value={form.masuk}
-            onChange={(e) => handleChange('masuk', e.target.value)}
-          />
-          <Input
-            label="Keluar"
-            type="number"
-            inputMode="numeric"
-            placeholder="0"
-            value={form.keluar}
-            onChange={(e) => handleChange('keluar', e.target.value)}
-          />
-          <Input
-            label="Mati"
-            type="number"
-            inputMode="numeric"
-            placeholder="0"
-            value={form.mati}
-            onChange={(e) => handleChange('mati', e.target.value)}
-          />
-        </div>
-
-        {stokWarning && (
-          <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-300">
-            <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div className="text-sm text-amber-800">
-              <strong>Peringatan!</strong> Keluar ({keluarVal.toLocaleString('id-ID')}) + Mati ({matiVal.toLocaleString('id-ID')}) = <strong>{totalPengurangan.toLocaleString('id-ID')}</strong> melebihi stok saat ini (<strong>{currentStok?.toLocaleString('id-ID')}</strong>).
-            </div>
-          </div>
-        )}
-
-        <Select
-          label="Sumber"
-          options={sumberOptions}
-          value={form.sumber}
-          onChange={(e) => handleChange('sumber', e.target.value)}
-        />
-
-        <Select
-          label="Tujuan"
-          options={tujuanOptions}
-          value={form.tujuan}
-          onChange={(e) => handleChange('tujuan', e.target.value)}
-        />
-      </Card>
-
-      {/* Fixed bottom submit */}
-      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[420px] p-4 bg-white/80 backdrop-blur-lg border-t border-gray-100 space-y-2">
-        {form.bibit && keluarVal > 0 && (
-          <Button
-            size="md"
-            variant="secondary"
-            icon={<FileText className="w-4 h-4" />}
-            onClick={() => {
-              const params = new URLSearchParams({
-                preview: '1',
-                tanggal: form.tanggal,
-                bibit: form.bibit,
-                keluar: String(keluarVal),
-                sumber: form.sumber,
-                tujuan: form.tujuan,
-              });
-              navigate(`/surat-jalan?${params.toString()}`);
-            }}
-            className="w-full"
-          >
-            Preview Surat Jalan
-          </Button>
-        )}
+      {/* Pilihan mode input */}
+      <div className="flex gap-3 mb-4">
         <Button
-          size="lg"
-          loading={submitting}
-          icon={<Plus className="w-5 h-5" />}
-          onClick={handleSubmit}
-          disabled={!form.bibit}
-          className="w-full"
+          variant={inputMode === 'chatbot' ? 'primary' : 'secondary'}
+          onClick={() => setInputMode('chatbot')}
+          className="flex-1"
         >
-          Simpan Data
+          Input Cepat (Chatbot)
+        </Button>
+        <Button
+          variant={inputMode === 'manual' ? 'primary' : 'secondary'}
+          onClick={() => setInputMode('manual')}
+          className="flex-1"
+        >
+          Input Manual (Formulir)
         </Button>
       </div>
+
+      {/* Tampilkan panel sesuai pilihan */}
+      {inputMode === 'chatbot' && (
+        <div className="mb-6">
+            <ChatbotPanel onClose={() => setInputMode(null)} mode="input" />
+        </div>
+      )}
+
+      {inputMode === 'manual' && (
+        <>
+          {/* Offline Warning */}
+          {!isOnline && (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
+              <WifiOff className="w-5 h-5 text-red-500 shrink-0" />
+              <div>
+                <p className="text-[13px] font-semibold text-red-700">Tidak ada koneksi internet</p>
+                <p className="text-[11px] text-red-500 mt-0.5">Form hanya bisa dikirim saat online. Silakan sambungkan internet terlebih dahulu.</p>
+              </div>
+            </div>
+          )}
+
+          <Card className={`space-y-4 ${!isOnline ? 'opacity-50 pointer-events-none' : ''}`}>
+            <Input
+              label="Tanggal"
+              type="date"
+              value={form.tanggal}
+              onChange={(e) => handleChange('tanggal', e.target.value)}
+            />
+
+            <Select
+              label="Jenis Bibit"
+              options={plantOptions}
+              value={form.bibit}
+              onChange={(e) => handleChange('bibit', e.target.value)}
+            />
+
+            {form.bibit && currentStok !== null && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
+                <span className="text-sm text-blue-700">
+                  📦 Stok <strong>{form.bibit}</strong> saat ini: <strong>{currentStok.toLocaleString('id-ID')}</strong> bibit
+                </span>
+              </div>
+            )}
+
+            {form.bibit && currentStok === 0 && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                <span className="text-sm text-red-700">Stok <strong>{form.bibit}</strong> sudah habis!</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-3 gap-3">
+              <Input
+                label="Masuk"
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={form.masuk}
+                onChange={(e) => handleChange('masuk', e.target.value)}
+              />
+              <Input
+                label="Keluar"
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={form.keluar}
+                onChange={(e) => handleChange('keluar', e.target.value)}
+              />
+              <Input
+                label="Mati"
+                type="number"
+                inputMode="numeric"
+                placeholder="0"
+                value={form.mati}
+                onChange={(e) => handleChange('mati', e.target.value)}
+              />
+            </div>
+
+            {stokWarning && (
+              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-300">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-amber-800">
+                  <strong>Peringatan!</strong> Keluar ({keluarVal.toLocaleString('id-ID')}) + Mati ({matiVal.toLocaleString('id-ID')}) = <strong>{totalPengurangan.toLocaleString('id-ID')}</strong> melebihi stok saat ini (<strong>{currentStok?.toLocaleString('id-ID')}</strong>).
+                </div>
+              </div>
+            )}
+
+            <Select
+              label="Sumber"
+              options={sumberOptions}
+              value={form.sumber}
+              onChange={(e) => handleChange('sumber', e.target.value)}
+            />
+
+            <Select
+              label="Tujuan"
+              options={tujuanOptions}
+              value={form.tujuan}
+              onChange={(e) => handleChange('tujuan', e.target.value)}
+            />
+
+            <Select
+              label="Dibuat Oleh"
+              options={dibuatOlehOptions}
+              value={form.dibuatOleh}
+              onChange={(e) => handleChange('dibuatOleh', e.target.value)}
+            />
+
+            <Select
+              label="Driver"
+              options={driverOptions}
+              value={form.driver}
+              onChange={(e) => handleChange('driver', e.target.value)}
+            />
+          </Card>
+
+          {/* Fixed bottom submit */}
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[420px] p-4 bg-white/80 backdrop-blur-lg border-t border-gray-100 space-y-2">
+            {form.bibit && keluarVal > 0 && (
+              <Button
+                size="md"
+                variant="secondary"
+                icon={<FileText className="w-4 h-4" />}
+                onClick={() => {
+                  const params = new URLSearchParams({
+                    preview: '1',
+                    tanggal: form.tanggal,
+                    bibit: form.bibit,
+                    keluar: String(keluarVal),
+                    sumber: form.sumber,
+                    tujuan: form.tujuan,
+                    dibuatOleh: form.dibuatOleh,
+                    driver: form.driver,
+                  });
+                  navigate(`/surat-jalan?${params.toString()}`);
+                }}
+                className="w-full"
+              >
+                Preview Surat Jalan
+              </Button>
+            )}
+            <Button
+              size="lg"
+              loading={submitting}
+              icon={<Plus className="w-5 h-5" />}
+              onClick={handleSubmit}
+              disabled={!form.bibit || !isOnline}
+              className="w-full"
+            >
+              {isOnline ? 'Simpan Data' : 'Offline — Tidak Bisa Simpan'}
+            </Button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

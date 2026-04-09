@@ -3,7 +3,41 @@
 const TOKEN_FONNTE = "VDFAKtD3JhwNymAf6Sgz";
 const NOMOR_ADMIN = "120363225239992587@g.us,120363420098143015@g.us";
 const SHEET_NAME = "Bibit";
+const MASTER_SHEET_NAME = "Master";
 const FOLDER_SURAT_JALAN = "Surat Jalan Bibit";
+
+// === Inisialisasi Sheet Master untuk dropdown Dibuat Oleh & Driver ===
+function initMasterSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var master = ss.getSheetByName(MASTER_SHEET_NAME);
+  if (!master) {
+    master = ss.insertSheet(MASTER_SHEET_NAME);
+    master.getRange(1, 1).setValue("Dibuat Oleh");
+    master.getRange(1, 2).setValue("Driver");
+    // Contoh data awal — bisa diedit langsung di sheet
+    master.getRange(2, 1).setValue("Admin Nursery");
+    master.getRange(3, 1).setValue("Petugas Nursery");
+    master.getRange(2, 2).setValue("Sopir 1");
+    master.getRange(3, 2).setValue("Sopir 2");
+    master.autoResizeColumns(1, 2);
+  }
+  return master;
+}
+
+// === Ambil daftar dropdown dari sheet Master ===
+function getDropdownOptions() {
+  var master = initMasterSheet();
+  var data = master.getDataRange().getValues();
+  var dibuatOleh = [];
+  var driver = [];
+  for (var i = 1; i < data.length; i++) {
+    var nama = (data[i][0] || "").toString().trim();
+    var drv = (data[i][1] || "").toString().trim();
+    if (nama) dibuatOleh.push(nama);
+    if (drv) driver.push(drv);
+  }
+  return { dibuatOleh: dibuatOleh, driver: driver };
+}
 
 // === Web API — doPost (Terima data dari form) ===
 function doPost(e) {
@@ -37,6 +71,26 @@ function doPost(e) {
     if (headerMap.mati >= 0) rowData[headerMap.mati] = Number(body.mati) || 0;
     if (headerMap.sumber >= 0) rowData[headerMap.sumber] = body.sumber || "";
     if (headerMap.tujuan >= 0) rowData[headerMap.tujuan] = body.tujuan || "";
+
+    // Kolom Dibuat Oleh
+    var dibuatOlehCol = headerMap.dibuatoleh;
+    if (dibuatOlehCol === -1) {
+      dibuatOlehCol = totalCols;
+      sheet.getRange(1, dibuatOlehCol + 1).setValue("Dibuat Oleh");
+      totalCols = dibuatOlehCol + 1;
+      rowData.push("");
+    }
+    rowData[dibuatOlehCol] = body.dibuat_oleh || body.dibuatOleh || "";
+
+    // Kolom Driver
+    var driverCol = headerMap.driver;
+    if (driverCol === -1) {
+      driverCol = totalCols;
+      sheet.getRange(1, driverCol + 1).setValue("Driver");
+      totalCols = driverCol + 1;
+      rowData.push("");
+    }
+    rowData[driverCol] = body.driver || "";
 
     // Hitung total = masuk - keluar - mati (kumulatif bisa dihitung ulang di sheet)
     if (headerMap.total >= 0) {
@@ -80,7 +134,9 @@ function doPost(e) {
       var kodeVer = rowData[verifyCol];
       var nomorSurat = generateNomorSurat(newRow, tanggalStr);
 
-      pdfUrl = generateSuratJalanPdf(tanggalStr, bibitStr, keluarNum, sumberStr, tujuanStr, kodeVer, nomorSurat);
+      var dibuatOlehStr = body.dibuat_oleh || body.dibuatOleh || "-";
+      var driverStr = body.driver || "-";
+      pdfUrl = generateSuratJalanPdf(tanggalStr, bibitStr, keluarNum, sumberStr, tujuanStr, kodeVer, nomorSurat, dibuatOlehStr, driverStr);
 
       // Simpan link PDF ke sheet
       sheet.getRange(newRow, linkPdfCol + 1).setValue(pdfUrl);
@@ -124,6 +180,13 @@ function doGet(e) {
   var headerMap = buildHeaderMap(sheet);
   var allData = sheet.getDataRange().getValues();
 
+  // === Dropdowns endpoint: ?action=dropdowns ===
+  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action.toString().trim() : "";
+  if (action === "dropdowns") {
+    var opts = getDropdownOptions();
+    return ContentService.createTextOutput(JSON.stringify(opts)).setMimeType(ContentService.MimeType.JSON);
+  }
+
   // === Verify endpoint: ?verify=KODE10CHAR ===
   var verifyCode = (e && e.parameter && e.parameter.verify) ? e.parameter.verify.toString().trim() : "";
   if (verifyCode) {
@@ -156,7 +219,9 @@ function doGet(e) {
       tujuan: safeGet(r, headerMap.tujuan, "").toString().trim(),
       statusKirim: safeGet(r, headerMap.statuskirim, "").toString().trim(),
       kodeVerifikasi: safeGet(r, headerMap.kodeverifikasi, "").toString().trim(),
-      linkPdf: safeGet(r, headerMap.linkpdf, "").toString().trim()
+      linkPdf: safeGet(r, headerMap.linkpdf, "").toString().trim(),
+      dibuatOleh: safeGet(r, headerMap.dibuatoleh, "").toString().trim(),
+      driver: safeGet(r, headerMap.driver, "").toString().trim()
     });
   }
 
@@ -205,6 +270,8 @@ function onOpen() {
     .addItem("Kirim baris aktif", "sendSelectedRow")
     .addItem("Tes kirim baris ke-2", "testKirimManual")
     .addItem("Scan & kirim pending", "scanAndSendPendingRows")
+    .addSeparator()
+    .addItem("Inisialisasi Sheet Master (Dropdown)", "initMasterSheet")
     .addToUi();
 }
 
@@ -279,7 +346,9 @@ function getOrCreateFolder(folderName) {
 }
 
 // === Generate Surat Jalan PDF dan simpan ke Drive ===
-function generateSuratJalanPdf(tanggal, bibit, keluar, sumber, tujuan, kodeVerifikasi, nomorSurat) {
+function generateSuratJalanPdf(tanggal, bibit, keluar, sumber, tujuan, kodeVerifikasi, nomorSurat, dibuatOleh, driver) {
+  dibuatOleh = dibuatOleh || "-";
+  driver = driver || "-";
   var folder = getOrCreateFolder(FOLDER_SURAT_JALAN);
 
   var tanggalFormatted = formatTanggalWITA(tanggal);
@@ -305,6 +374,7 @@ function generateSuratJalanPdf(tanggal, bibit, keluar, sumber, tujuan, kodeVerif
     + '.sig-box { text-align: center; width: 30%; }'
     + '.sig-box .label { font-size: 11px; font-weight: bold; }'
     + '.sig-box .line { border-bottom: 1px solid #333; margin: 50px 10px 4px; }'
+    + '.sig-box .name { font-size: 11px; font-weight: bold; margin-top: 2px; }'
     + '.sig-box .role { font-size: 9px; color: #888; }'
     + '.footer { border-top: 1px solid #ddd; margin-top: 30px; padding-top: 12px; font-size: 9px; color: #999; }'
     + '.verify-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 14px; border-radius: 6px; margin: 12px 0; font-size: 10px; }'
@@ -337,9 +407,9 @@ function generateSuratJalanPdf(tanggal, bibit, keluar, sumber, tujuan, kodeVerif
   html += '<p class="note">Catatan: Pastikan bibit dalam kondisi baik saat penyerahan. Surat jalan ini sebagai bukti distribusi resmi.</p>';
 
   html += '<div class="sig-container">';
-  html += '<div class="sig-box"><div class="label">Dibuat oleh</div><div class="line"></div><div class="role">Petugas Nursery</div></div>';
-  html += '<div class="sig-box"><div class="label">Dikirim oleh</div><div class="line"></div><div class="role">Sopir / Kurir</div></div>';
-  html += '<div class="sig-box"><div class="label">Diterima oleh</div><div class="line"></div><div class="role">Penerima Lapangan</div></div>';
+  html += '<div class="sig-box"><div class="label">Dibuat oleh</div><div class="line"></div><div class="name">' + dibuatOleh + '</div><div class="role">Petugas Nursery</div></div>';
+  html += '<div class="sig-box"><div class="label">PJ Nursery</div><div class="line"></div><div class="name"></div><div class="role">Penanggung Jawab</div></div>';
+  html += '<div class="sig-box"><div class="label">Driver</div><div class="line"></div><div class="name">' + driver + '</div><div class="role">Sopir / Kurir</div></div>';
   html += '</div>';
 
   html += '<div class="verify-box">';
@@ -393,7 +463,9 @@ function buildHeaderMap(sheet) {
     tujuan: findAny(["tujuan", "lokasi", "tujuan bibit"]),
     statuskirim: findAny(["status kirim", "status_kirim", "status"]),
     kodeverifikasi: findAny(["kode verifikasi", "kode_verifikasi", "kodeverifikasi"]),
-    linkpdf: findAny(["link pdf", "link_pdf", "linkpdf"])
+    linkpdf: findAny(["link pdf", "link_pdf", "linkpdf"]),
+    dibuatoleh: findAny(["dibuat oleh", "dibuat_oleh", "dibuatoleh"]),
+    driver: findAny(["driver", "sopir"])
   };
 }
 
@@ -491,6 +563,8 @@ function kirimPesanFonnte(sheet, row, headerMap, allData) {
     var mati = safeNum(vals, headerMap.mati, 0);
     var sumber = (safeGet(vals, headerMap.sumber, "-") || "-").toString();
     var tujuan = (safeGet(vals, headerMap.tujuan, "-") || "-").toString();
+    var dibuatOleh = (safeGet(vals, headerMap.dibuatoleh, "-") || "-").toString();
+    var driverName = (safeGet(vals, headerMap.driver, "-") || "-").toString();
     var header = headerMap;
 
     // === AGREGAT KINERJA NURSERY (TOTAL) ===
@@ -712,7 +786,10 @@ function kirimPesanFonnte(sheet, row, headerMap, allData) {
       (masuk > 0 ? "Jumlah Masuk : " + masuk.toLocaleString('id-ID') + " bibit\n" : "") +
       (keluar > 0 ? "Jumlah Keluar : " + keluar.toLocaleString('id-ID') + " bibit\n" : "") +
       "\nSumber : " + sumber + "\n" +
-      "Tujuan : " + tujuan + "\n\n" +
+      "Tujuan : " + tujuan + "\n" +
+      (dibuatOleh !== "-" ? "Dibuat Oleh : " + dibuatOleh + "\n" : "") +
+      (driverName !== "-" ? "Driver : " + driverName + "\n" : "") +
+      "\n" +
       teksRekap + "\n" +
       "----------------------------------\n" +
       "📊 Analisis Aktivitas:\n" +

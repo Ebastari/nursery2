@@ -122,18 +122,34 @@ export const api = {
     const plants = derivePlants(rows);
     return deriveAlerts(plants, rows);
   },
-  async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord> {
+async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord & { linkPdf?: string }> {
     const { fetchApiData: _fetch, clearCache: _clear, API_URL } = await import('./api');
+    
+    // Prepare GAS payload - map fields + ensure tanggal
+    const today = new Date().toISOString().split('T')[0];
+    const gasPayload = {
+      tanggal: record.tanggal || today,
+      bibit: record.bibit,
+      masuk: record.masuk || 0,
+      keluar: record.keluar || 0,
+      mati: record.mati || 0,
+      sumber: record.sumber || '',
+      tujuan: record.tujuan || '',
+      dibuat_oleh: record.dibuatOleh || '',  // GAS expects snake_case
+      driver: record.driver || '',
+    };
+    
     const res = await fetch(API_URL, {
       method: 'POST',
-      body: JSON.stringify(record),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(gasPayload),
       redirect: 'follow',
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     if (!json.success) throw new Error(json.error || 'Gagal menyimpan data');
     _clear();
-    return { ...record, id: `ACT-${json.row || Date.now()}` };
+    return { ...record, id: `ACT-${json.row || Date.now()}`, linkPdf: json.linkPdf || '' };
   },
   async generateDocument(shipmentId: string): Promise<Document> {
     return {

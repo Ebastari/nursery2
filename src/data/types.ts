@@ -19,6 +19,8 @@ export interface ActivityRecord {
   mati: number;
   sumber: string;
   tujuan: string;
+  dibuatOleh?: string;
+  driver?: string;
 }
 
 export type ShipmentStatus = 'draft' | 'dikirim' | 'diterima';
@@ -55,6 +57,22 @@ export interface Alert {
   severity: AlertSeverity;
   timestamp: string;
   read: boolean;
+}
+
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ApprovalRecord {
+  id: string;
+  nomorSurat: string;
+  tanggal: string;
+  bibit: string;
+  jumlah: number;
+  tujuan: string;
+  status: ApprovalStatus;
+  dibuatOleh: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  rejectionReason?: string;
 }
 
 export interface Notification {

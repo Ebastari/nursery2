@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import type { PlantStock, ActivityRecord, Shipment, Document, Alert, Notification } from '../data/types';
+import type { PlantStock, ActivityRecord, Shipment, Document, Alert, Notification, ApprovalRecord } from '../data/types';
 import { api } from '../data/mockData';
 import { fetchApiData, clearCache } from '../data/api';
+import { getLastUpdated } from '../data/indexedDb';
 import type { ApiRow } from '../data/api';
 
 function deriveNotifications(rows: ApiRow[]): Notification[] {
@@ -34,6 +35,19 @@ interface AppState {
   documents: Document[];
   alerts: Alert[];
   notifications: Notification[];
+  approvals: ApprovalRecord[];
+
+  // Admin mode
+  isAdmin: boolean;
+  adminPassword: string;
+
+  // Input form (persists across navigation)
+  inputForm: { tanggal: string; bibit: string; masuk: string; keluar: string; mati: string; sumber: string; tujuan: string; dibuatOleh: string; driver: string };
+  setInputForm: (patch: Partial<AppState['inputForm']>) => void;
+  resetInputForm: () => void;
+
+  // Offline sync
+  lastUpdated: string | null;
 
   // Loading states
   loadingPlants: boolean;
@@ -45,6 +59,7 @@ interface AppState {
   submitting: boolean;
 
   // Actions
+  loadLastUpdated: () => Promise<void>;
   fetchPlants: () => Promise<void>;
   fetchActivities: () => Promise<void>;
   fetchShipments: () => Promise<void>;
@@ -57,6 +72,10 @@ interface AppState {
   markAlertRead: (id: string) => void;
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
+  setAdminMode: (password: string) => boolean;
+  clearAdminMode: () => void;
+  approveSuratJalan: (id: string, approvedBy: string) => void;
+  rejectSuratJalan: (id: string, reason: string) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -66,6 +85,44 @@ export const useStore = create<AppState>((set, get) => ({
   documents: [],
   alerts: [],
   notifications: [],
+  approvals: [],
+
+  isAdmin: false,
+  adminPassword: 'admin123',
+
+  inputForm: {
+    tanggal: new Date().toISOString().split('T')[0],
+    bibit: '',
+    masuk: '',
+    keluar: '',
+    mati: '',
+    sumber: '',
+    tujuan: '',
+    dibuatOleh: '',
+    driver: '',
+  },
+
+  setInputForm: (patch) => {
+    set((state) => ({ inputForm: { ...state.inputForm, ...patch } }));
+  },
+
+  resetInputForm: () => {
+    set({
+      inputForm: {
+        tanggal: new Date().toISOString().split('T')[0],
+        bibit: '',
+        masuk: '',
+        keluar: '',
+        mati: '',
+        sumber: '',
+        tujuan: '',
+        dibuatOleh: '',
+        driver: '',
+      },
+    });
+  },
+
+  lastUpdated: null,
 
   loadingPlants: false,
   loadingActivities: false,
@@ -74,6 +131,13 @@ export const useStore = create<AppState>((set, get) => ({
   loadingAlerts: false,
   loadingNotifications: false,
   submitting: false,
+
+  loadLastUpdated: async () => {
+    try {
+      const ts = await getLastUpdated();
+      set({ lastUpdated: ts });
+    } catch { /* ignore */ }
+  },
 
   fetchPlants: async () => {
     set({ loadingPlants: true });
@@ -110,7 +174,8 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       const rows = await fetchApiData();
       const notifications = deriveNotifications(rows);
-      set({ notifications, loadingNotifications: false });
+      const ts = await getLastUpdated();
+      set({ notifications, loadingNotifications: false, lastUpdated: ts });
     } catch {
       set({ loadingNotifications: false });
     }
@@ -118,8 +183,9 @@ export const useStore = create<AppState>((set, get) => ({
 
   refreshAll: async () => {
     clearCache();
-    const { fetchPlants, fetchActivities, fetchAlerts, fetchNotifications } = get();
+    const { fetchPlants, fetchActivities, fetchAlerts, fetchNotifications, loadLastUpdated } = get();
     await Promise.all([fetchPlants(), fetchActivities(), fetchAlerts(), fetchNotifications()]);
+    await loadLastUpdated();
   },
 
   submitActivity: async (record) => {
@@ -164,5 +230,73 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       notifications: state.notifications.map((n) => ({ ...n, read: true })),
     }));
+  },
+
+  setAdminMode: (password) => {
+    const correctPassword = 'admin123';
+    if (password === correctPassword) {
+      set({ isAdmin: true, adminPassword: password });
+      return true;
+    }
+    return false;
+  },
+
+  clearAdminMode: () => {
+    set({ isAdmin: false, adminPassword: '' });
+  },
+
+  approveSuratJalan: (nomorSurat, approvedBy) => {
+    set((state) => {
+      const exists = state.approvals.find((a) => a.nomorSurat === nomorSurat);
+      if (exists) {
+        return {
+          approvals: state.approvals.map((a) =>
+            a.nomorSurat === nomorSurat
+              ? { ...a, status: 'approved' as const, approvedBy, approvedAt: new Date().toISOString() }
+              : a
+          ),
+        };
+      }
+      const newApproval: ApprovalRecord = {
+        id: `approval-${Date.now()}`,
+        nomorSurat,
+        tanggal: new Date().toISOString().split('T')[0],
+        bibit: '-',
+        jumlah: 0,
+        tujuan: '-',
+        status: 'approved',
+        dibuatoleh: approvedBy,
+        approvedBy,
+        approvedAt: new Date().toISOString(),
+      };
+      return { approvals: [newApproval, ...state.approvals] };
+    });
+  },
+
+  rejectSuratJalan: (nomorSurat, reason) => {
+    set((state) => {
+      const exists = state.approvals.find((a) => a.nomorSurat === nomorSurat);
+      if (exists) {
+        return {
+          approvals: state.approvals.map((a) =>
+            a.nomorSurat === nomorSurat
+              ? { ...a, status: 'rejected' as const, rejectionReason: reason }
+              : a
+          ),
+        };
+      }
+      const newApproval: ApprovalRecord = {
+        id: `approval-${Date.now()}`,
+        nomorSurat,
+        tanggal: new Date().toISOString().split('T')[0],
+        bibit: '-',
+        jumlah: 0,
+        tujuan: '-',
+        status: 'rejected',
+        dibuatoleh: '-',
+        rejectionReason: reason,
+      };
+      return { approvals: [newApproval, ...state.approvals] };
+    });
   },
 }));

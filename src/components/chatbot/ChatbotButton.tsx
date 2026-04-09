@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MessageCircle } from 'lucide-react';
+import { Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChatbotPanel } from './ChatbotPanel';
 
@@ -8,7 +8,7 @@ export function ChatbotButton() {
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button — Fast Input */}
       <AnimatePresence>
         {!open && (
           <motion.button
@@ -17,14 +17,17 @@ export function ChatbotButton() {
             exit={{ scale: 0 }}
             transition={{ type: 'spring', stiffness: 400, damping: 25 }}
             onClick={() => setOpen(true)}
-            className="fixed bottom-24 right-4 z-[150] w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-[0_4px_20px_rgba(5,150,105,0.4)] flex items-center justify-center hover:shadow-[0_6px_28px_rgba(5,150,105,0.5)] hover:scale-105 transition-all"
+            className="fixed bottom-24 right-4 z-[150] flex items-center gap-2 h-12 pl-3.5 pr-4 rounded-full bg-[#1a1a1a] text-white shadow-[0_4px_24px_rgba(0,0,0,0.35)] border border-white/10 hover:border-white/20 hover:shadow-[0_6px_32px_rgba(0,0,0,0.45)] hover:scale-[1.03] transition-all"
           >
-            <MessageCircle className="w-6 h-6" />
+            <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center">
+              <Zap className="w-3.5 h-3.5 text-white" />
+            </div>
+            <span className="text-[13px] font-semibold tracking-tight">Fast Input</span>
           </motion.button>
         )}
       </AnimatePresence>
 
-      {/* Chatbot Panel */}
+      {/* Fast Input Panel */}
       <AnimatePresence>
         {open && <ChatbotPanel onClose={() => setOpen(false)} />}
       </AnimatePresence>

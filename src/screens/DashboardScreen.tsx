@@ -14,21 +14,28 @@ import {
   Sparkles,
   MessageCircle,
   ChevronRight,
+  Wifi,
+  WifiOff,
+  RefreshCw,
 } from 'lucide-react';
 import { useState } from 'react';
 import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
 import { AnimatePresence } from 'framer-motion';
+import { useOnlineStatus } from '../data/useOnlineStatus';
 
 export function DashboardScreen() {
-  const { plants, activities, alerts, loadingPlants, loadingActivities, fetchPlants, fetchActivities, fetchAlerts } =
+  const { plants, activities, alerts, lastUpdated, loadingPlants, loadingActivities, fetchPlants, fetchActivities, fetchAlerts, loadLastUpdated, refreshAll } =
     useStore();
   const [chatOpen, setChatOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
     fetchPlants();
     fetchActivities();
     fetchAlerts();
-  }, [fetchPlants, fetchActivities, fetchAlerts]);
+    loadLastUpdated();
+  }, [fetchPlants, fetchActivities, fetchAlerts, loadLastUpdated]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   const todayActivities = activities.filter((a) => a.tanggal === todayStr);
@@ -39,21 +46,75 @@ export function DashboardScreen() {
   const unreadAlerts = alerts.filter((a) => !a.read);
   const dateLabel = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
+  const handleRefresh = async () => {
+    if (!isOnline || refreshing) return;
+    setRefreshing(true);
+    try {
+      await refreshAll();
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  const lastUpdatedLabel = lastUpdated
+    ? new Date(lastUpdated).toLocaleString('id-ID', {
+        day: 'numeric', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
   if (loadingPlants || loadingActivities) return <DashboardSkeleton />;
 
   return (
     <div className="fade-in space-y-6">
+      {/* Online / Offline Banner */}
+      {!isOnline && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+          <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
+          <span className="text-[12px] text-amber-800 font-medium">Mode Offline — menampilkan data tersimpan</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-[1.35rem] font-extrabold text-gray-900 tracking-tight">Dashboard</h1>
           <p className="text-[13px] text-gray-400 mt-0.5">{dateLabel}</p>
         </div>
-        <div className="relative">
-          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-            <Sprout className="w-5 h-5 text-white" />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefresh}
+            disabled={!isOnline || refreshing}
+            className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform"
+            title="Refresh data"
+          >
+            <RefreshCw className={`w-4 h-4 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+          <div className="relative">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+              <Sprout className="w-5 h-5 text-white" />
+            </div>
           </div>
         </div>
+      </div>
+
+      {/* Last Updated + Status Bar */}
+      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-100">
+        <div className="flex items-center gap-2">
+          {isOnline ? (
+            <Wifi className="w-3.5 h-3.5 text-emerald-500" />
+          ) : (
+            <WifiOff className="w-3.5 h-3.5 text-amber-500" />
+          )}
+          <span className={`text-[11px] font-semibold ${isOnline ? 'text-emerald-600' : 'text-amber-600'}`}>
+            {isOnline ? 'Online' : 'Offline'}
+          </span>
+        </div>
+        {lastUpdatedLabel && (
+          <span className="text-[11px] text-gray-400">
+            Terakhir di-update: {lastUpdatedLabel}
+          </span>
+        )}
       </div>
 
       {/* Total Stock Card — Premium gradient */}
@@ -98,7 +159,7 @@ export function DashboardScreen() {
       </button>
 
       <AnimatePresence>
-        {chatOpen && <ChatbotPanel onClose={() => setChatOpen(false)} />}
+        {chatOpen && <ChatbotPanel onClose={() => setChatOpen(false)} mode="info" />}
       </AnimatePresence>
 
       {/* Today's Activity */}
