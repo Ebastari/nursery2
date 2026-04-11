@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Layout } from './layout/Layout';
-import { DashboardScreen } from './screens/DashboardScreen';
+import DashboardScreen from './screens/DashboardScreen';
 import { QuickInputScreen } from './screens/QuickInputScreen';
 import { StockScreen } from './screens/StockScreen';
 import { DistributionScreen } from './screens/DistributionScreen';
@@ -25,7 +25,8 @@ function App() {
           <Route path="/alerts" element={<AlertScreen />} />
           <Route path="/surat-jalan" element={<SuratJalanScreen />} />
           <Route path="/verify" element={<VerifyScreen />} />
-          <Route path="/approval" element={<ApprovalScreen />} />
+          <Route path="/approval" element={<ApprovalScreenDIAGNOSTIC />} />
+
         </Route>
       </Routes>
     </BrowserRouter>

@@ -3,7 +3,7 @@ import { fetchApiData } from './api';
 import type { ApiRow } from './api';
 
 // === Derive PlantStock from live API rows ===
-function derivePlants(rows: ApiRow[]): PlantStock[] {
+export function derivePlants(rows: ApiRow[]): PlantStock[] {
   const map = new Map<string, { masuk: number; keluar: number; mati: number; lastDate: string }>();
 
   for (const r of rows) {
@@ -37,7 +37,7 @@ function derivePlants(rows: ApiRow[]): PlantStock[] {
 }
 
 // === Derive ActivityRecord from live API rows ===
-function deriveActivities(rows: ApiRow[]): ActivityRecord[] {
+export function deriveActivities(rows: ApiRow[]): ActivityRecord[] {
   return rows.map((r, i) => ({
     id: String(i + 1),
     tanggal: r.tanggal,
@@ -51,7 +51,7 @@ function deriveActivities(rows: ApiRow[]): ActivityRecord[] {
 }
 
 // === Derive Shipments from live rows where keluar > 0 ===
-function deriveShipments(rows: ApiRow[]): Shipment[] {
+export function deriveShipments(rows: ApiRow[]): Shipment[] {
   return rows
     .filter((r) => r.keluar > 0)
     .sort((a, b) => b.tanggal.localeCompare(a.tanggal))
@@ -69,7 +69,7 @@ function deriveShipments(rows: ApiRow[]): Shipment[] {
 }
 
 // === Derive Alerts dynamically from stock levels ===
-function deriveAlerts(plants: PlantStock[], rows: ApiRow[]): Alert[] {
+export function deriveAlerts(plants: PlantStock[], rows: ApiRow[]): Alert[] {
   const alerts: Alert[] = [];
   const now = new Date().toISOString();
   let id = 1;
@@ -114,8 +114,36 @@ export const api = {
     return deriveShipments(rows);
   },
   async getDocuments(): Promise<Document[]> {
-    // No document data in spreadsheet — return empty
-    return [];
+    // Dummy dokumen distribusi dengan pdfUrl valid
+    return [
+      {
+        id: 'DOC-001',
+        shipmentId: 'SHP-001',
+        nomor: 'SJ/2026/04/001',
+        tanggal: '2026-04-10',
+        status: 'success',
+        pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+        ttdSopir: true,
+      },
+      {
+        id: 'DOC-002',
+        shipmentId: 'SHP-002',
+        nomor: 'SJ/2026/04/002',
+        tanggal: '2026-04-11',
+        status: 'success',
+        pdfUrl: 'https://www.africau.edu/images/default/sample.pdf',
+        ttdSopir: true,
+      },
+      {
+        id: 'DOC-003',
+        shipmentId: 'SHP-003',
+        nomor: 'SJ/2026/04/003',
+        tanggal: '2026-04-11',
+        status: 'success',
+        pdfUrl: '#', // ini tidak akan tampil tombol PDF
+        ttdSopir: true,
+      },
+    ];
   },
   async getAlerts(): Promise<Alert[]> {
     const rows = await fetchApiData();
@@ -124,7 +152,7 @@ export const api = {
   },
 async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord & { linkPdf?: string }> {
     const { fetchApiData: _fetch, clearCache: _clear, API_URL } = await import('./api');
-    
+
     // Prepare GAS payload - map fields + ensure tanggal
     const today = new Date().toISOString().split('T')[0];
     const gasPayload = {
@@ -138,12 +166,14 @@ async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord
       dibuat_oleh: record.dibuatOleh || '',  // GAS expects snake_case
       driver: record.driver || '',
     };
-    
-    const res = await fetch(API_URL, {
+
+    // Use local proxy server to handle GAS requests (updated port)
+    const PROXY_URL = 'http://localhost:3001/api/proxy';
+
+    const res = await fetch(PROXY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(gasPayload),
-      redirect: 'follow',
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
@@ -152,13 +182,20 @@ async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord
     return { ...record, id: `ACT-${json.row || Date.now()}`, linkPdf: json.linkPdf || '' };
   },
   async generateDocument(shipmentId: string): Promise<Document> {
+    // Generate dokumen dengan pdfUrl random
+    const pdfSamples = [
+      'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
+      'https://www.africau.edu/images/default/sample.pdf',
+      'https://file-examples-com.github.io/uploads/2017/10/file-sample_150kB.pdf',
+    ];
+    const randomUrl = pdfSamples[Math.floor(Math.random() * pdfSamples.length)];
     return {
       id: `DOC-${Date.now()}`,
       shipmentId,
       nomor: `SJ/2026/04/${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`,
       tanggal: new Date().toISOString().split('T')[0],
       status: 'success',
-      pdfUrl: '#',
+      pdfUrl: randomUrl,
     };
   },
 };

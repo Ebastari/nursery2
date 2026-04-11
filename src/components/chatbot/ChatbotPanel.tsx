@@ -14,6 +14,14 @@ import {
   type FormData,
   type DropdownData,
 } from './chatbotLogic';
+
+// Multi-agent/skill: daftar agent/topik
+const AGENTS = [
+  { key: 'input', label: 'Fast Input' },
+  { key: 'info', label: 'Info Bibit' },
+  { key: 'laporan', label: 'Laporan' },
+  { key: 'bantuan', label: 'Bantuan' },
+];
 import { api } from '../../data/mockData';
 
 const LOGO = 'https://i.ibb.co.com/xSTT9wJK/download.png';
@@ -79,11 +87,20 @@ function ProgressBar({ step }: { step: Step }) {
   );
 }
 
-export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void; mode?: 'input' | 'info' }) {
+export function ChatbotPanel({ onClose, mode: initialMode = 'input' }: { onClose: () => void; mode?: string }) {
+  // Multi-agent: state agent aktif, fallback ke 'input' jika tidak valid
+  const [agent, setAgent] = useState<string>(AGENTS.some(a => a.key === initialMode) ? initialMode : 'input');
   const navigate = useNavigate();
 
-  // Mode: 'input' = fast input, 'info' = asisten info bibit
-  const [step, setStep] = useState<Step>(mode === 'info' ? 'action' : 'greeting');
+  // Mode: 'input' = fast input, 'info' = asisten info bibit, dst
+  const [step, setStep] = useState<Step>(agent === 'info' ? 'action' : 'greeting');
+
+  // Pastikan agent selalu valid (jika user reload atau state error)
+  useEffect(() => {
+    if (!AGENTS.some(a => a.key === agent)) {
+      setAgent('input');
+    }
+  }, [agent]);
   const [formData, setFormData] = useState<FormData>({ ...emptyForm });
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,6 +129,7 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
   }, []);
 
   // ── Init: load options ──
+  // Inisialisasi ulang saat agent/topik diganti
   useEffect(() => {
     (async () => {
       try {
@@ -121,10 +139,9 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
       } catch {
         // fallback silence
       }
-      if (mode === 'info') {
+      if (agent === 'info') {
         addMsg('bot', 'Halo! Saya Montana Bibit AI. Silakan tanya stok, distribusi, kematian, atau info bibit apa saja. Contoh: "Stok hari ini", "Stok SENGON POTTING", "Distribusi ke TIM BASRI", "Kematian bibit hari ini".');
         addMsg('bot', 'Ingin menambah data distribusi bibit? Klik di sini: [Input Data Bibit](#/quick-input)');
-        // Quick chat: kirim quick reply sebagai pesan bot agar langsung muncul tombol
         setTimeout(() => {
           setMessages((prev) => [
             ...prev,
@@ -132,26 +149,32 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
           ]);
         }, 100);
         setStep('action');
+      } else if (agent === 'laporan') {
+        addMsg('bot', 'Selamat datang di menu **Laporan**. Silakan ketik jenis laporan yang ingin diambil, contoh: "Laporan distribusi minggu ini", "Laporan kematian bulan ini".');
+        setStep('action');
+      } else if (agent === 'bantuan') {
+        addMsg('bot', 'Selamat datang di menu **Bantuan**. Ketik pertanyaan Anda atau pilih topik bantuan di bawah.');
+        setStep('action');
       } else {
         addMsg('bot', GREETING);
         setStep('action');
       }
       setLoading(false);
     })();
-  }, [mode]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agent]);
 
   // ── Handle user input (quick reply or text) ──
   const handleInput = useCallback(async (value: string, displayText?: string) => {
     if (submitting || loading) return;
     addMsg('user', displayText || value);
 
-    if (mode === 'info') {
-      // Mode info: parse pertanyaan dan jawab info bibit
+    // Multi-agent logic
+    if (agent === 'info') {
+      // ...existing logic info bibit...
       const q = value.toLowerCase();
-      // --- Stok semua bibit per jenis ---
       if (q.includes('stok')) {
         if (q.includes('hari ini') || q.includes('semua') || q === 'stok') {
-          // Tampilkan tabel stok semua bibit
           let msg = '**Stok Bibit per Jenis (Saat Ini):**\n';
           let total = 0;
           options.bibit.forEach((b) => {
@@ -162,7 +185,6 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
           msg += `\n**Total Stok:** ${total.toLocaleString('id-ID')} bibit`;
           addMsg('bot', msg);
         } else {
-          // Cek stok per bibit
           const found = options.bibit.find((b) => q.includes(b.toLowerCase()));
           if (found) {
             const stok = stokMap[found.toUpperCase()] || 0;
@@ -171,10 +193,7 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
             addMsg('bot', 'Silakan sebutkan nama bibit yang ingin dicek stoknya, atau ketik "Stok semua bibit".');
           }
         }
-      }
-      // --- Jumlah kematian bibit per jenis ---
-      else if (q.includes('mati') || q.includes('kematian')) {
-        // Ambil data kematian per jenis dari API
+      } else if (q.includes('mati') || q.includes('kematian')) {
         try {
           const apiRows = await import('../../data/api').then((mod) => mod.fetchApiData());
           const kematianMap: Record<string, number> = {};
@@ -192,21 +211,16 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
         } catch (err) {
           addMsg('bot', 'Gagal mengambil data kematian bibit.');
         }
-      }
-      // --- Distribusi bibit per tujuan/tim ---
-      else if (q.includes('distribusi') || q.includes('tujuan') || q.includes('tim')) {
-        // Deteksi nama tim dari pertanyaan
+      } else if (q.includes('distribusi') || q.includes('tujuan') || q.includes('tim')) {
         let timMatch = q.match(/tim\s+([a-zA-Z0-9]+)/);
         let timName = timMatch ? timMatch[1].toUpperCase() : '';
         if (!timName) {
-          // Coba cari kata setelah "ke "
           let keMatch = q.match(/ke\s+([a-zA-Z0-9]+)/);
           if (keMatch) timName = keMatch[1].toUpperCase();
         }
         if (timName) {
           try {
             const apiRows = await import('../../data/api').then((mod) => mod.fetchApiData());
-            // Filter data distribusi ke tim tersebut
             const rowsTim = apiRows.filter((row) =>
               row.tujuan && row.tujuan.toUpperCase().includes('TIM ' + timName)
             );
@@ -214,7 +228,6 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
               addMsg('bot', `Tidak ditemukan data distribusi ke Tim ${timName.charAt(0) + timName.slice(1).toLowerCase()}.`);
               return;
             }
-            // Rekap jumlah keluar per jenis bibit
             const rekap: Record<string, number> = {};
             rowsTim.forEach((row) => {
               const key = row.bibit.trim();
@@ -233,16 +246,20 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
         } else {
           addMsg('bot', 'Silakan sebutkan nama tim, contoh: "Distribusi ke Tim Basri".');
         }
-      }
-      // --- Info bibit baru ---
-      else if (q.includes('bibit baru')) {
+      } else if (q.includes('bibit baru')) {
         addMsg('bot', 'Fitur info bibit baru akan segera hadir.');
-      }
-
-      // --- Default fallback ---
-      else {
+      } else {
         addMsg('bot', 'Maaf, saya belum mengerti pertanyaan Anda.\n\nContoh: "Stok semua bibit", "Stok SENGON POTTING", "Kematian bibit hari ini".');
       }
+      return;
+    }
+    if (agent === 'laporan') {
+      // Contoh: logic laporan sederhana
+      addMsg('bot', 'Fitur laporan akan segera hadir. Silakan sebutkan jenis laporan yang diinginkan.');
+      return;
+    }
+    if (agent === 'bantuan') {
+      addMsg('bot', 'Fitur bantuan akan segera hadir. Silakan ketik pertanyaan Anda.');
       return;
     }
 
@@ -307,7 +324,7 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
     setFormData((prev) => ({ ...prev, ...result.updatedForm }));
     addMsg('bot', result.message);
     setStep(result.nextStep);
-  }, [step, formData, stokMap, submitting, loading, pdfUrl, navigate, onClose, addMsg, mode, options.bibit]);
+  }, [step, formData, stokMap, submitting, loading, pdfUrl, navigate, onClose, addMsg, agent, options.bibit]);
 
   // ── Submit data ──
   const handleSubmit = async () => {
@@ -381,8 +398,9 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
     { label: 'Kematian bibit hari ini', value: 'Kematian bibit hari ini' },
     { label: 'Stok semua bibit', value: 'Stok semua bibit' },
   ];
-  const quickReplies = mode === 'info' ? infoQuickReplies : getQuickReplies(step, options, stokMap);
-  const showNumberInput = mode === 'info' ? false : step === 'jumlah';
+  // Quick reply per agent
+  const quickReplies = agent === 'info' ? infoQuickReplies : getQuickReplies(step, options, stokMap);
+  const showNumberInput = agent === 'info' ? false : step === 'jumlah';
 
   const handleTextSend = () => {
     const trimmed = inputValue.trim();
@@ -411,9 +429,9 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
         <div className="flex-1 min-w-0">
           <h2 className="text-[14px] font-semibold text-white truncate flex items-center gap-1.5">
             <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            Fast Input
+            {AGENTS.find((a) => a.key === agent)?.label || 'Chatbot'}
           </h2>
-          <p className="text-[10px] text-gray-500">Pencatatan Cepat Bibit Nursery</p>
+          <p className="text-[10px] text-gray-500">Pilih topik di bawah untuk ganti fitur</p>
         </div>
         <button
           onClick={resetAll}
@@ -429,6 +447,18 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
           <X className="w-4 h-4 text-gray-400" />
         </button>
       </div>
+      {/* Pilihan agent/topik */}
+      <div className="flex gap-2 px-4 py-2 bg-[#232323] border-b border-white/5">
+        {AGENTS.map((a) => (
+          <button
+            key={a.key}
+            onClick={() => { setAgent(a.key); setMessages([]); setFormData({ ...emptyForm }); setPdfUrl(''); nextId.current = 0; }}
+            className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${agent === a.key ? 'bg-emerald-600 text-white' : 'bg-white/5 text-gray-300 hover:bg-white/10'}`}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
 
       {/* ── Progress ── */}
       {step !== 'greeting' && <ProgressBar step={step} />}
@@ -443,7 +473,7 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
         )}
 
         {messages.map((msg) => {
-          if (msg.text === '__quickreplies__' && mode === 'info') {
+          if (msg.text === '__quickreplies__' && agent === 'info') {
             const handleQuick = (val: string, label: string) => {
               handleInput(val, label);
             };
@@ -534,7 +564,7 @@ export function ChatbotPanel({ onClose, mode = 'input' }: { onClose: () => void;
 
       {/* ── Input chat selalu di bawah panel, WhatsApp style ── */}
       <div className="shrink-0 border-t border-white/5 bg-[#1a1a1a] px-3 py-3 flex flex-col gap-1">
-        {(showNumberInput || mode === 'info') && (
+        {(showNumberInput || agent === 'info') && (
           <div className="flex items-center gap-2 bg-[#2f2f2f] rounded-xl px-4 py-2">
             <input
               ref={inputRef}

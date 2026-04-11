@@ -1,49 +1,82 @@
-import { useEffect } from 'react';
-import { useStore } from '../store/useStore';
+import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import { 
+  Wifi, WifiOff, RefreshCw, Shield, Sparkles, Package, MessageCircle, 
+  ChevronRight, TrendingUp, AlertTriangle 
+} from 'lucide-react';
 import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
-import { DashboardSkeleton } from '../components/LoadingState';
-import {
-  Sprout,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  Leaf,
-  AlertTriangle,
-  TrendingUp,
-  Package,
-  Sparkles,
-  MessageCircle,
-  ChevronRight,
-  Wifi,
-  WifiOff,
-  RefreshCw,
-} from 'lucide-react';
-import { useState } from 'react';
+import { ApprovalModal } from '../components/ApprovalModal';
 import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
-import { AnimatePresence } from 'framer-motion';
+import { useStore } from '../store/useStore';
 import { useOnlineStatus } from '../data/useOnlineStatus';
+import type { PlantStock, Alert, Document } from '../data/types';
+import DocumentPreview from '../components/DocumentPreview';
+import { ChartContainer } from '../components/ChartContainer';
+import LineChartCard from '../../nursery-dashboard/src/components/LineChartCard';
+import { loadPerformanceData, getPerformanceData, getSummary } from '../data/performanceData';
 
-export function DashboardScreen() {
-  const { plants, activities, alerts, lastUpdated, loadingPlants, loadingActivities, fetchPlants, fetchActivities, fetchAlerts, loadLastUpdated, refreshAll } =
-    useStore();
+const DashboardScreen: React.FC = () => {
+  // ...existing code...
+  // State dan variabel lain
+  // ...existing code...
+  // (sudah dideklarasikan di atas, hapus duplikat)
+
+  // Helper untuk Ringkasan Kinerja Bibit
+  let summaryItems: any[] = [];
+  if (summary) {
+    summaryItems = [
+      {
+        title: 'Total Keluar',
+        value: summary.totalKeseluruhan.toLocaleString('id-ID'),
+        desc: 'Semua bibit',
+        color: 'from-emerald-500 to-emerald-600',
+        bg: 'from-emerald-50 to-emerald-100'
+      },
+      ...(summary.perBibit || []).slice(0, 8).map((b: any) => ({
+        title: b.bibit,
+        value: b.total.toLocaleString('id-ID'),
+        desc: 'Keluar',
+        color: 'from-blue-500 to-indigo-600',
+        bg: 'from-blue-50 to-indigo-100'
+      }))
+    ];
+  }
+  const { plants, alerts, documents, approvals, lastUpdated, loadingPlants, fetchAlerts, loadLastUpdated, refreshAll, isAdmin } = useStore();
+  function getApprovalStatus(nomorSurat: string) {
+    return approvals.find((a) => a.nomorSurat === nomorSurat && a.status === 'approved');
+  }
+
+  const [showAdminModal, setShowAdminModal] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const isOnline = useOnlineStatus();
 
+  // (hapus duplikat deklarasi di sini)
+  const [summary2026, setSummary2026] = useState<any>(null);
+  const [avgPerDay2026, setAvgPerDay2026] = useState<number>(0);
+
   useEffect(() => {
-    fetchPlants();
-    fetchActivities();
     fetchAlerts();
     loadLastUpdated();
-  }, [fetchPlants, fetchActivities, fetchAlerts, loadLastUpdated]);
+    loadPerformanceData().then(() => {
+      const data = getPerformanceData('Semua');
+      setPerfData(data);
+      setSummary(getSummary(data));
+      // Filter data tahun 2026
+      const data2026 = data.filter((d: any) => {
+        if (!d.tanggal) return false;
+        const year = d.tanggal.slice(0, 4);
+        return year === '2026';
+      });
+      setSummary2026(getSummary(data2026));
+      setAvgPerDay2026(data2026.length > 0 ? getSummary(data2026).totalKeseluruhan / data2026.length : 0);
+      setPerfLoaded(true);
+    });
+  }, [fetchAlerts, loadLastUpdated]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayActivities = activities.filter((a) => a.tanggal === todayStr);
-  const totalMasuk = todayActivities.reduce((sum, a) => sum + a.masuk, 0) || activities.reduce((sum, a) => sum + a.masuk, 0);
-  const totalKeluar = todayActivities.reduce((sum, a) => sum + a.keluar, 0) || activities.reduce((sum, a) => sum + a.keluar, 0);
-  const totalMati = todayActivities.reduce((sum, a) => sum + a.mati, 0) || activities.reduce((sum, a) => sum + a.mati, 0);
-  const totalStock = plants.reduce((sum, p) => sum + p.stock, 0);
-  const unreadAlerts = alerts.filter((a) => !a.read);
+  const totalStock = plants.reduce((sum, p: PlantStock) => sum + p.stock, 0);
+  const unreadAlerts = alerts.filter((a: Alert) => !a.read);
   const dateLabel = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 
   const handleRefresh = async () => {
@@ -63,188 +96,277 @@ export function DashboardScreen() {
       })
     : null;
 
-  if (loadingPlants || loadingActivities) return <DashboardSkeleton />;
+  if (loadingPlants) return <div>Loading...</div>;
 
   return (
-    <div className="fade-in space-y-6">
-      {/* Online / Offline Banner */}
-      {!isOnline && (
-        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
-          <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
-          <span className="text-[12px] text-amber-800 font-medium">Mode Offline — menampilkan data tersimpan</span>
-        </div>
-      )}
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-[1.35rem] font-extrabold text-gray-900 tracking-tight">Dashboard</h1>
-          <p className="text-[13px] text-gray-400 mt-0.5">{dateLabel}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleRefresh}
-            disabled={!isOnline || refreshing}
-            className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform"
-            title="Refresh data"
-          >
-            <RefreshCw className={`w-4 h-4 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
-          <div className="relative">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-              <Sprout className="w-5 h-5 text-white" />
-            </div>
+    <>
+      <div className="min-h-screen space-y-6 p-6 lg:p-8 max-w-7xl mx-auto py-8">
+        {/* 1. Header */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 lg:gap-0">
+          <div>
+            <h1 className="text-4xl font-black bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent tracking-tight">Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">{dateLabel}</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleRefresh}
+              disabled={!isOnline || refreshing}
+              className="w-14 h-14 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-105 disabled:opacity-50 disabled:shadow-none transition-all text-white"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-6 h-6 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              onClick={() => setShowAdminModal(true)}
+              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-xl hover:shadow-2xl hover:scale-105 transition-all"
+              title={isAdmin ? 'Admin Active' : 'Admin Login'}
+            >
+              <Shield className={`w-6 h-6 ${isAdmin ? 'text-white' : 'text-white/80'}`} />
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Last Updated + Status Bar */}
-      <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-gray-50 border border-gray-100">
-        <div className="flex items-center gap-2">
-          {isOnline ? (
-            <Wifi className="w-3.5 h-3.5 text-emerald-500" />
-          ) : (
-            <WifiOff className="w-3.5 h-3.5 text-amber-500" />
+        {/* 2. Status Bar */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between p-6 rounded-3xl bg-gradient-to-r from-emerald-50 via-white to-blue-50 border border-emerald-200 shadow-2xl">
+          <div className="flex items-center gap-4 mb-4 md:mb-0">
+            {isOnline ? (
+              <>
+                <div className="w-4 h-4 bg-emerald-500 rounded-full ring-2 ring-emerald-200 animate-ping"></div>
+                <span className="font-bold text-emerald-800 text-lg">● Online</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-8 h-8 text-amber-500" />
+                <span className="font-bold text-amber-800 text-lg">● Offline</span>
+              </>
+            )}
+          </div>
+          {lastUpdatedLabel && (
+            <div className="text-sm text-gray-600 font-semibold bg-white/80 px-4 py-2 rounded-2xl shadow-lg border border-gray-200">
+              <span className="block md:inline text-xs text-gray-500">Last Update</span>
+              <span>{lastUpdatedLabel}</span>
+            </div>
           )}
-          <span className={`text-[11px] font-semibold ${isOnline ? 'text-emerald-600' : 'text-amber-600'}`}>
-            {isOnline ? 'Online' : 'Offline'}
-          </span>
         </div>
-        {lastUpdatedLabel && (
-          <span className="text-[11px] text-gray-400">
-            Terakhir di-update: {lastUpdatedLabel}
-          </span>
+
+        {/* 3. Offline Warning (if offline) */}
+        {!isOnline && (
+          <Card className="p-6 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-3xl shadow-xl">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center shadow-lg">
+                <WifiOff className="w-8 h-8 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-amber-900 mb-1">Offline Mode</h3>
+                <p className="text-amber-800">Showing cached data. Connect to internet for live updates.</p>
+              </div>
+            </div>
+          </Card>
         )}
-      </div>
 
-      {/* Total Stock Card — Premium gradient */}
-      <Card className="!p-0 overflow-hidden border-0 !shadow-[0_4px_24px_rgba(5,150,105,0.18)]">
-        <div className="bg-gradient-to-br from-emerald-600 via-emerald-600 to-teal-600 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5 mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-200" />
-                <p className="text-emerald-100 text-[11px] font-semibold uppercase tracking-wider">Total Stok Bibit</p>
+        {/* 4. Total Stok Bibit - Hero Card */}
+        <Card className="overflow-hidden !border-0 shadow-2xl !rounded-3xl group hover:shadow-3xl transition-all duration-500">
+          <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-8 relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/20 to-transparent opacity-75 blur-xl"></div>
+            <div className="relative z-10 flex items-center justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-7 h-7 text-emerald-300 drop-shadow-lg" />
+                  <p className="text-emerald-100 font-bold text-lg uppercase tracking-wider">Total Stok Bibit</p>
+                </div>
+                <p className="text-6xl lg:text-7xl font-black text-white leading-none drop-shadow-2xl group-hover:scale-105 transition-transform duration-300">
+                  {totalStock.toLocaleString('id-ID')}
+                </p>
+                <p className="text-emerald-100 text-lg font-semibold">{plants.length} jenis tanaman aktif</p>
               </div>
-              <p className="text-[2rem] font-extrabold text-white tracking-tight leading-none">{totalStock.toLocaleString('id-ID')}</p>
-              <p className="text-emerald-200/80 text-xs mt-2 font-medium">{plants.length} jenis tanaman aktif</p>
-            </div>
-            <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur-sm flex items-center justify-center">
-              <Package className="w-7 h-7 text-white" />
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Montana Bibit AI */}
-      <button
-        onClick={() => setChatOpen(true)}
-        className="w-full text-left"
-      >
-        <Card className="!p-0 overflow-hidden border-0 !shadow-[0_2px_16px_rgba(0,0,0,0.06)] hover:!shadow-[0_4px_20px_rgba(0,0,0,0.1)] transition-shadow">
-          <div className="flex items-center gap-3.5 p-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center shrink-0 shadow-lg">
-              <MessageCircle className="w-5.5 h-5.5 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h3 className="text-[14px] font-bold text-gray-900">Montana Bibit AI</h3>
-                <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700 text-[9px] font-bold uppercase tracking-wider">Live</span>
+              <div className="w-28 h-28 bg-white/10 backdrop-blur-xl rounded-3xl flex items-center justify-center shadow-2xl group-hover:scale-110 transition-all duration-300">
+                <Package className="w-12 h-12 text-white drop-shadow-lg" />
               </div>
-              <p className="text-[12px] text-gray-400 mt-0.5">Tanya stok, kinerja, tim & data nursery real-time</p>
             </div>
-            <ChevronRight className="w-5 h-5 text-gray-300 shrink-0" />
           </div>
         </Card>
-      </button>
+
+        {/* 5. Montana Bibit AI */}
+        <Card className="group hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 overflow-hidden !rounded-3xl shadow-xl hover:-translate-y-2">
+          <button className="w-full text-left p-0" onClick={() => setChatOpen(true)}>
+            <div className="p-8 flex items-center gap-6">
+              <div className="w-20 h-20 bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl flex items-center justify-center shadow-2xl shrink-0">
+                <MessageCircle className="w-10 h-10 text-slate-200" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-2xl font-black text-gray-900">Montana Bibit AI</h3>
+                  <Badge className="bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-bold uppercase tracking-wider">Live</Badge>
+                </div>
+                <p className="text-gray-600 text-lg leading-relaxed">Tanya stok, kinerja, distribusi, dan data nursery secara real-time</p>
+              </div>
+              <ChevronRight className="w-8 h-8 text-gray-400 group-hover:translate-x-1 transition-transform duration-300 shrink-0" />
+            </div>
+          </button>
+        </Card>
+
+        {/* 6. Ringkasan Kinerja Bibit - 3x3 Grid (khusus tahun 2026) */}
+        <Card className="!p-0 border-0 shadow-2xl rounded-3xl overflow-hidden">
+          <div className="p-8 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <h2 className="text-2xl font-black text-gray-900 mb-8">Ringkasan Kinerja Bibit 2026</h2>
+            {summary ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {summaryItems.map((item, idx) => (
+                  <div key={idx} className="group p-6 rounded-2xl hover:shadow-xl transition-all duration-300 bg-gradient-to-br bg-opacity-50 backdrop-blur-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className={`text-sm font-bold text-gray-600 uppercase tracking-wide`}>{item.desc}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <p className={`text-4xl font-black bg-gradient-to-r ${item.color} bg-clip-text text-transparent drop-shadow-lg group-hover:scale-105 transition-transform`}>{item.value}</p>
+                      <p className="text-lg font-bold text-gray-900">{item.title}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-12 text-center">
+                <div className="w-20 h-20 bg-gray-200 rounded-2xl animate-spin mx-auto mb-4"></div>
+                <p className="text-gray-500">Loading ringkasan kinerja...</p>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* 7. Grafik Kinerja - Single Block */}
+        {perfLoaded && (
+          <Card className="border-0 shadow-2xl rounded-3xl overflow-hidden">
+            <div className="p-8">
+              <h2 className="text-2xl font-black text-gray-900 mb-6">Grafik Kinerja - 7 Hari Terakhir</h2>
+              <ChartContainer title="Total Bibit Keluar">
+                <LineChartCard data={perfData.slice(-7)} />
+              </ChartContainer>
+            </div>
+          </Card>
+        )}
+
+        {/* 8. Stok Per Tanaman */}
+        <Card className="shadow-xl rounded-3xl border-0 p-1">
+          <div className="p-8">
+            <h2 className="text-2xl font-black text-gray-900 mb-8 flex items-center gap-3">
+              Stok Per Tanaman
+              <span className="text-sm text-emerald-600 font-bold bg-emerald-100 px-3 py-1 rounded-full">{plants.length} Jenis</span>
+            </h2>
+            <div className="space-y-4">
+              {plants.slice(0, 8).map((plant: PlantStock) => {
+                const percentage = plant.maxStock > 0 ? Math.round((plant.stock / plant.maxStock) * 100) : 0;
+                const variant = percentage > 50 ? 'success' : percentage > 20 ? 'warning' : 'danger';
+                const color = percentage > 50 ? 'emerald' : percentage > 20 ? 'amber' : 'red';
+                return (
+                  <Card key={plant.id} className="flex items-center justify-between p-6 hover:shadow-md transition-shadow !border-emerald-100">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-${color}-50 to-${color}-100 flex items-center justify-center shadow-md`}>
+                        <TrendingUp className="w-7 h-7 text-${color}-600" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-xl text-gray-900">{plant.name}</p>
+                        <p className="text-sm text-gray-500">Max: {plant.maxStock.toLocaleString('id-ID')}</p>
+                      </div>
+                    </div>
+                    <div className="text-right space-y-1">
+                      <p className="text-3xl font-black text-gray-900">{plant.stock.toLocaleString('id-ID')}</p>
+                      <Badge variant={variant} className="text-xs">{percentage}%</Badge>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+
+        {/* 9. Peringatan */}
+        {unreadAlerts.length > 0 && (
+          <Card className="shadow-xl rounded-3xl border-red-200 border !border-opacity-50">
+            <div className="p-8">
+              <h2 className="text-2xl font-black text-gray-900 mb-6 flex items-center gap-3">
+                Peringatan
+                <Badge variant="danger" className="text-lg px-4 py-2">
+                  {unreadAlerts.length}
+                </Badge>
+              </h2>
+              <div className="space-y-4">
+                {unreadAlerts.slice(0, 5).map((alert: Alert) => {
+                  const severityColor = alert.severity === 'high' ? 'red' : alert.severity === 'medium' ? 'amber' : 'blue';
+                  return (
+                    <div key={alert.id} className="flex items-start gap-4 p-5 bg-gradient-to-r from-white to-gray-50 rounded-2xl hover:shadow-md transition-all border-l-4 border-l-${severityColor}-500">
+                      <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br from-${severityColor}-50 to-${severityColor}-100 flex items-center justify-center shadow-lg flex-shrink-0`}>
+                        <AlertTriangle className={`w-6 h-6 text-${severityColor}-600`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-gray-900 mb-1 leading-tight">{alert.message}</p>
+                        <p className="text-xs text-gray-500">{new Date(alert.timestamp).toLocaleTimeString('id-ID')}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* 10. Distribusi & Surat Jalan */}
+        <Card className="shadow-2xl rounded-3xl border-0">
+          <div className="p-8">
+            <h2 className="text-2xl font-black text-gray-900 mb-8">Distribusi & Surat Jalan</h2>
+            {documents.length === 0 ? (
+              <div className="text-center py-16 text-gray-500">
+                <Package className="w-16 h-16 mx-auto mb-4 text-gray-400" />
+                <p className="text-lg">Belum ada dokumen distribusi</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {documents.slice(0, 6).map((doc: Document) => {
+                  const approval = getApprovalStatus(doc.nomor);
+                  const statusColor = approval ? 'emerald' : 'gray';
+                  return (
+                    <div key={doc.id} className="flex flex-col lg:flex-row lg:items-center justify-between p-6 bg-gradient-to-r from-gray-50 to-white rounded-2xl hover:shadow-md transition-all group">
+                      <div>
+                        <h4 className="font-bold text-xl text-gray-900">No: {doc.nomor}</h4>
+                        <p className="text-gray-600">Tanggal: {doc.tanggal}</p>
+                      </div>
+                      <div className="flex items-center gap-3 mt-4 lg:mt-0">
+                        <Badge className={`text-sm font-bold px-4 py-2 bg-${statusColor}-100 text-${statusColor}-800`}>
+                          {approval ? '✅ Disetujui' : '⏳ Belum Disetujui'}
+                        </Badge>
+                        {approval && doc.pdfUrl && doc.pdfUrl !== '#' && (
+                          <button
+                            className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl transition-all shadow-md hover:shadow-lg"
+                            onClick={() => window.open(doc.pdfUrl, '_blank')}
+                          >
+                            📄 Lihat PDF
+                          </button>
+                        )}
+                      </div>
+                      {approval && doc.pdfUrl && doc.pdfUrl !== '#' && (
+                        <div className="mt-6 lg:mt-0">
+                          <DocumentPreview url={doc.pdfUrl} height={200} ttdSopir={doc.ttdSopir} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Card>
+      </div>
 
       <AnimatePresence>
         {chatOpen && <ChatbotPanel onClose={() => setChatOpen(false)} mode="info" />}
       </AnimatePresence>
 
-      {/* Today's Activity */}
-      <div>
-        <h2 className="section-title mb-3">Aktivitas Hari Ini</h2>
-        <div className="grid grid-cols-3 gap-3">
-          <Card className="text-center !py-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/80 flex items-center justify-center mx-auto mb-2.5 shadow-sm">
-              <ArrowDownToLine className="w-[18px] h-[18px] text-emerald-600" />
-            </div>
-            <p className="text-2xl font-extrabold text-gray-900 tracking-tight">{totalMasuk}</p>
-            <p className="text-[11px] text-gray-400 mt-1 font-medium">Masuk</p>
-          </Card>
-          <Card className="text-center !py-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/80 flex items-center justify-center mx-auto mb-2.5 shadow-sm">
-              <ArrowUpFromLine className="w-[18px] h-[18px] text-blue-600" />
-            </div>
-            <p className="text-2xl font-extrabold text-gray-900 tracking-tight">{totalKeluar}</p>
-            <p className="text-[11px] text-gray-400 mt-1 font-medium">Keluar</p>
-          </Card>
-          <Card className="text-center !py-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-50 to-red-100/80 flex items-center justify-center mx-auto mb-2.5 shadow-sm">
-              <Leaf className="w-[18px] h-[18px] text-red-500" />
-            </div>
-            <p className="text-2xl font-extrabold text-gray-900 tracking-tight">{totalMati}</p>
-            <p className="text-[11px] text-gray-400 mt-1 font-medium">Mati</p>
-          </Card>
-        </div>
-      </div>
-
-      {/* Stock Per Plant */}
-      <div>
-        <h2 className="section-title mb-3">Stok Per Tanaman</h2>
-        <div className="space-y-2.5">
-          {plants.map((plant) => (
-            <Card key={plant.id} className="flex items-center justify-between !py-3.5">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/80 flex items-center justify-center shadow-sm">
-                  <TrendingUp className="w-[18px] h-[18px] text-emerald-600" />
-                </div>
-                <div>
-                  <p className="font-bold text-gray-900 text-[13px]">{plant.name}</p>
-                  <p className="text-[11px] text-gray-400">Maks: {plant.maxStock.toLocaleString('id-ID')}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="font-extrabold text-gray-900 text-[15px] tracking-tight">{plant.stock.toLocaleString('id-ID')}</p>
-                <Badge
-                  dot
-                  variant={plant.stock / plant.maxStock > 0.5 ? 'success' : plant.stock / plant.maxStock > 0.2 ? 'warning' : 'danger'}
-                >
-                  {Math.round((plant.stock / plant.maxStock) * 100)}%
-                </Badge>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
-
-      {/* Alerts Preview */}
-      {unreadAlerts.length > 0 && (
-        <div>
-          <h2 className="section-title mb-3 flex items-center gap-2">
-            Peringatan
-            <Badge variant="danger" size="md" dot>{unreadAlerts.length}</Badge>
-          </h2>
-          <div className="space-y-2.5">
-            {unreadAlerts.slice(0, 3).map((alert) => (
-              <Card key={alert.id} className="flex items-start gap-3.5 !py-3.5">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
-                  alert.severity === 'high' ? 'bg-gradient-to-br from-red-50 to-red-100/80' : alert.severity === 'medium' ? 'bg-gradient-to-br from-amber-50 to-amber-100/80' : 'bg-gradient-to-br from-blue-50 to-blue-100/80'
-                }`}>
-                  <AlertTriangle className={`w-4 h-4 ${
-                    alert.severity === 'high' ? 'text-red-500' : alert.severity === 'medium' ? 'text-amber-500' : 'text-blue-500'
-                  }`} />
-                </div>
-                <div>
-                  <p className="text-sm text-gray-900">{alert.message}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">{new Date(alert.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      <ApprovalModal 
+        isOpen={showAdminModal} 
+        onClose={() => setShowAdminModal(false)} 
+        onSuccess={() => setShowAdminModal(false)} 
+      />
+    </>
   );
-}
+};
+
+export default DashboardScreen;
+

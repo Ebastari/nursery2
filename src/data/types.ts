@@ -45,6 +45,7 @@ export interface Document {
   tanggal: string;
   status: DocumentStatus;
   pdfUrl: string;
+  ttdSopir?: boolean; // status ceklis ttd sopir
 }
 
 export type AlertType = 'low-stock' | 'mortality' | 'document';

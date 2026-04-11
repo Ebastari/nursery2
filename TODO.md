@@ -1,14 +1,22 @@
-# Fix Blank White Screen
+## FIX: Menu Approval Blank Putih
 
-## Current Status
-✅ Plan confirmed by user
-✅ Console analysis complete
+### ✅ Phase 1: Diagnostic Hotfix  
+- [x] Create TODO.md 
+- [ ] Update ApprovalScreen.tsx → Bulletproof diagnostic version  
+- [x] Update useStore.ts → Add approvalError state
+- [ ] **USER TEST**: Navigate /approval → Check console → Report errors
+- [ ] **USER TEST**: Navigate /approval → Check console → Report errors
 
-## Steps (1/5):
-- [x] Create this TODO.md
-- [x] Fix Layout.tsx UserShield import → Shield icon
-- [x] Fix ChatbotPanel.tsx broken states/JSX  
-- [ ] Test npm run dev
-- [ ] F12 Console verify no errors
-- [ ] Test Dashboard + Chatbot button
-- [ ] Mark complete
+### ⏳ Phase 2: Root Cause Fix  
+- [ ] Fix fetchApiData() error
+- [ ] Add sample keluar data to Sheet  
+- [ ] Validate data flow
+
+### 🔮 Phase 3: Production Polish
+- [ ] Better empty states + CTAs
+- [ ] Auto-demo admin mode
+- [ ] Add approval to bottom nav
+
+---
+
+**Next**: Test diagnostic screen → identify crash → fix data → complete!

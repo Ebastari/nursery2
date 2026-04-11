@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Download, Share2, Printer, Eye, Send, CheckCircle, Shield } from 'lucide-react';
+import { ArrowLeft, Download, Share2, Printer, Eye, Send, CheckCircle } from 'lucide-react';
+import DocumentPreview from '../components/DocumentPreview';
 import { Button } from '../components/Button';
 import { fetchApiData } from '../data/api';
 import type { ApiRow } from '../data/api';
@@ -50,7 +51,15 @@ export function SuratJalanScreen() {
   const [kodeVerifikasi, setKodeVerifikasi] = useState<string>('');
   const [showAdminModal, setShowAdminModal] = useState(false);
 
-  const { approvals, approveSuratJalan } = useStore();
+  const { approvals, approveSuratJalan, documents, fetchDocuments, isAdmin } = useStore();
+  // Ambil dokumen saat mount
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  // Nomor surat dan dokumen terkait
+  const nomorSurat = row ? generateNomorSurat(row, rowIndex) : undefined;
+  const doc = nomorSurat ? documents.find((d) => d.nomor === nomorSurat) : undefined;
 
   const getApprovalStatus = useCallback(() => {
     if (!row) return null;
@@ -146,10 +155,19 @@ export function SuratJalanScreen() {
     );
   }
 
-  const nomorSurat = generateNomorSurat(row, rowIndex);
   const stokSetelah = getStokBibit(row.bibit);
-  const approval = getApprovalStatus();
-  const isApproved = approval?.status === 'approved';
+  // Jika preview dari form input, otomatis approve
+  let approval = getApprovalStatus();
+  let isApproved = approval?.status === 'approved';
+  if (isFormPreview && row) {
+    isApproved = true;
+    approval = {
+      nomorSurat,
+      status: 'approved',
+      approvedBy: 'Admin',
+      approvedAt: new Date().toISOString(),
+    };
+  }
 
   // === PDF Generation (shared: draft or final) ===
   const generatePDF = async (draft: boolean) => {
@@ -276,6 +294,14 @@ export function SuratJalanScreen() {
       for (let i = 0; i < 3; i++) {
         const cx = margin + sigW * i + sigW / 2;
         doc.line(cx - 18, y, cx + 18, y);
+        // Tambah centang jika sudah approve untuk kolom Dibuat oleh (0) dan Driver (2)
+        if (isApproved && (i === 0 || i === 2)) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(14);
+          doc.setTextColor(16, 185, 129); // hijau
+          doc.text('✓', cx + 15, y - 2, { align: 'center' });
+          doc.setTextColor(0, 0, 0);
+        }
         if (sigNames[i] && sigNames[i] !== '-') {
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(8);
@@ -472,24 +498,57 @@ export function SuratJalanScreen() {
 
           {/* Signature section */}
           <div className="grid grid-cols-3 gap-2 pt-2">
-            {[
-              { label: 'Dibuat oleh', name: row.dibuatOleh || '', role: 'Petugas Nursery' },
-              { label: 'PJ Nursery', name: '', role: 'Penanggung Jawab' },
-              { label: 'Driver', name: row.driver || '', role: 'Sopir / Kurir' },
-            ].map((sig) => (
-              <div key={sig.label} className="text-center space-y-8">
-                <p className="text-[10px] font-semibold text-gray-700">{sig.label}</p>
-                <div className="border-b border-gray-400 mx-2" />
-                {sig.name && sig.name !== '-' ? (
-                  <>
-                    <p className="text-[10px] font-bold text-gray-800 -mt-6">{sig.name}</p>
-                    <p className="text-[9px] text-gray-400 -mt-7">{sig.role}</p>
-                  </>
-                ) : (
-                  <p className="text-[9px] text-gray-400 -mt-6">{sig.role}</p>
-                )}
+            {/* Dibuat oleh */}
+            <div className="flex flex-col items-center justify-start h-36">
+              <p className="text-[10px] font-semibold text-gray-700 mb-1">Dibuat oleh</p>
+              <div className="flex items-center justify-center w-full" style={{height: '28px'}}>
+                <div className="border-b border-gray-400 w-24 flex items-center justify-center relative">
+                  {isApproved && (
+                    <span className="inline-flex items-center justify-center text-green-600 absolute left-1/2 -translate-x-1/2 -top-3 bg-white px-1" title="Disetujui">
+                      <CheckCircle className="w-5 h-5" />
+                    </span>
+                  )}
+                </div>
               </div>
-            ))}
+              <div className="flex flex-col items-center mt-2">
+                <p className="text-[10px] font-bold text-gray-800">{row.dibuatOleh && row.dibuatOleh !== '-' ? row.dibuatOleh : ''}</p>
+                <p className="text-[9px] text-gray-400">Petugas Nursery</p>
+              </div>
+            </div>
+            {/* Disetujui */}
+            <div className="flex flex-col items-center justify-start h-36">
+              <p className="text-[10px] font-semibold text-gray-700 mb-1">Disetujui</p>
+              <div className="flex items-center justify-center w-full" style={{height: '28px'}}>
+                <div className="border-b border-gray-400 w-24 flex items-center justify-center relative">
+                  {isApproved && approval?.approvedByDeptHead && (
+                    <span className="inline-flex items-center justify-center text-green-600 absolute left-1/2 -translate-x-1/2 -top-3 bg-white px-1" title="Disetujui">
+                      <CheckCircle className="w-5 h-5" />
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-center mt-2">
+                <p className="text-[10px] font-bold text-gray-800">Mariano Alvarado Simamor</p>
+                <p className="text-[9px] text-gray-400">Dept Head Revegetasi & Rehabilitasi</p>
+              </div>
+            </div>
+            {/* Driver */}
+            <div className="flex flex-col items-center justify-start h-36">
+              <p className="text-[10px] font-semibold text-gray-700 mb-1">Driver</p>
+              <div className="flex items-center justify-center w-full" style={{height: '28px'}}>
+                <div className="border-b border-gray-400 w-24 flex items-center justify-center relative">
+                  {isApproved && (
+                    <span className="inline-flex items-center justify-center text-green-600 absolute left-1/2 -translate-x-1/2 -top-3 bg-white px-1" title="Disetujui">
+                      <CheckCircle className="w-5 h-5" />
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-center mt-2">
+                <p className="text-[10px] font-bold text-gray-800">{row.driver && row.driver !== '-' ? row.driver : ''}</p>
+                <p className="text-[9px] text-gray-400">Sopir / Kurir</p>
+              </div>
+            </div>
           </div>
 
           {/* QR Code + Footer */}
@@ -528,28 +587,26 @@ export function SuratJalanScreen() {
         </div>
       )}
 
-      {/* Approval Status */}
+      {/* Approval Status & Preview Dokumen */}
       {isApproved && approval && (
-        <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 border border-green-300">
-          <CheckCircle className="w-4 h-4 text-green-600" />
-          <span className="text-sm font-semibold text-green-800">
-            Approved by {approval.approvedBy} — {new Date(approval.approvedAt!).toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-          </span>
-        </div>
+        <>
+          <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-green-50 border border-green-300">
+            <CheckCircle className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-semibold text-green-800">
+              Approved by {approval.approvedBy} — {new Date(approval.approvedAt!).toLocaleString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </span>
+          </div>
+          {/* Preview dokumen final jika ada */}
+          {row?.linkPdf && row.linkPdf !== '#' && row.linkPdf !== '' && (
+            <div className="my-4">
+              <div className="text-xs text-gray-500 mb-1 text-center">Preview Dokumen Final:</div>
+              <DocumentPreview url={row.linkPdf} height={340} />
+            </div>
+          )}
+        </>
       )}
 
-      {/* Admin/Approval button for non-approved docs */}
-      {!isApproved && isDraft && (
-        <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-200">
-          <Shield className="w-4 h-4 text-gray-600" />
-          <button
-            onClick={() => setShowAdminModal(true)}
-            className="text-sm font-semibold text-gray-700 hover:text-emerald-600 transition-colors"
-          >
-            Approve Dokumen
-          </button>
-        </div>
-      )}
+
 
       {/* Action buttons */}
       <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[420px] p-4 bg-white/80 backdrop-blur-lg border-t border-gray-100">

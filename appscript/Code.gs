@@ -50,11 +50,91 @@ function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     var headerMap = buildHeaderMap(sheet);
+
+    // === Handler Approval ===
+    if (body.action === "approve" && body.nomorSurat) {
+      // Pastikan kolom approval, approvedBy, approvedAt ada
+      var approvalCol = headerMap.statusapproval;
+      var approvedByCol = headerMap.approvedby;
+      var approvedAtCol = headerMap.approvedat;
+      var nomorSuratCol = headerMap.nomorsurat;
+      var totalCols = sheet.getLastColumn();
+      var headers = sheet.getRange(1, 1, 1, totalCols).getValues()[0].map(function(h){return h.toString().toLowerCase();});
+
+      // Tambah kolom jika belum ada
+      if (approvalCol === undefined || approvalCol === -1) {
+        approvalCol = totalCols;
+        sheet.getRange(1, approvalCol + 1).setValue("Status Approval");
+        totalCols++;
+      }
+      if (approvedByCol === undefined || approvedByCol === -1) {
+        approvedByCol = totalCols;
+        sheet.getRange(1, approvedByCol + 1).setValue("Approved By");
+        totalCols++;
+      }
+      if (approvedAtCol === undefined || approvedAtCol === -1) {
+        approvedAtCol = totalCols;
+        sheet.getRange(1, approvedAtCol + 1).setValue("Approved At");
+        totalCols++;
+      }
+      if (nomorSuratCol === undefined || nomorSuratCol === -1) {
+        // Coba cari header "No" atau "Nomor Surat"
+        nomorSuratCol = headers.findIndex(function(h){return h.indexOf("nomor surat")!==-1||h==="no";});
+        if (nomorSuratCol === -1) {
+          return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Kolom Nomor Surat tidak ditemukan" })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+
+      var data = sheet.getDataRange().getValues();
+      var found = false;
+      for (var i = 1; i < data.length; i++) {
+        var val = (data[i][nomorSuratCol]||"").toString().trim();
+        if (val === body.nomorSurat) {
+          sheet.getRange(i+1, approvalCol+1).setValue(body.status||"approved");
+          sheet.getRange(i+1, approvedByCol+1).setValue(body.approvedBy||"");
+          sheet.getRange(i+1, approvedAtCol+1).setValue(body.approvedAt||new Date());
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Nomor Surat tidak ditemukan" })).setMimeType(ContentService.MimeType.JSON);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Approval berhasil disimpan" })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // === Handler Input Data Bibit (default) ===
     var lastRow = sheet.getLastRow();
     var newRow = lastRow + 1;
-
-    // Siapkan array kosong sesuai jumlah kolom
     var totalCols = sheet.getLastColumn();
+    
+    // Pre-create all required columns first to get correct count
+    // Urutan penting: Nomor Surat, Status Approval,Approved By,Approved At, kemudian field lain
+    var colsNeeded = [
+      { name: "Nomor Surat", mapKey: "nomorsurat" },
+      { name: "Status Approval", mapKey: "statusapproval" },
+      { name: "Approved By", mapKey: "approvedby" },
+      { name: "Approved At", mapKey: "approvedat" },
+      { name: "Dibuat Oleh", mapKey: "dibuatoleh" },
+      { name: "Driver", mapKey: "driver" },
+      { name: "Kode Verifikasi", mapKey: "kodeverifikasi" },
+      { name: "Link PDF", mapKey: "linkpdf" },
+      { name: "Status Kirim", mapKey: "statuskirim" }
+    ];
+    
+    for (var c = 0; c < colsNeeded.length; c++) {
+      var colName = colsNeeded[c].name;
+      var mapKey = colsNeeded[c].mapKey;
+      if (headerMap[mapKey] === -1) {
+        sheet.getRange(1, totalCols + c + 1).setValue(colName);
+      }
+    }
+    
+    // Rebuild headerMap after adding columns
+    totalCols = sheet.getLastColumn();
+    headerMap = buildHeaderMap(sheet);
+    
+    // Now create rowData with correct size
     var rowData = new Array(totalCols).fill("");
 
     // Isi data sesuai posisi header
@@ -111,6 +191,17 @@ function doPost(e) {
     }
     rowData[verifyCol] = generateVerificationCode(10);
 
+    // Kolom Nomor Surat
+    var nomorSuratCol = headerMap.nomorsurat;
+    if (nomorSuratCol === -1) {
+      nomorSuratCol = totalCols;
+      sheet.getRange(1, nomorSuratCol + 1).setValue("Nomor Surat");
+      totalCols = nomorSuratCol + 1;
+      rowData.push("");
+    }
+    var nomorSurat = generateNomorSurat(newRow, body.tanggal || new Date().toISOString().split("T")[0]);
+    rowData[nomorSuratCol] = nomorSurat;
+    
     // Kolom link PDF
     var linkPdfCol = headerMap.linkpdf;
     if (linkPdfCol === -1) {
@@ -120,9 +211,14 @@ function doPost(e) {
       rowData.push("");
     }
 
-    // Tulis baris baru
+    // Tulis baris baru ke sheet
     sheet.getRange(newRow, 1, 1, totalCols).setValues([rowData]);
 
+    // Refresh headerMap untuk mendapatkan posisi kolom terbaru
+    var finalHeaderMap = buildHeaderMap(sheet);
+    var finalLinkPdfCol = finalHeaderMap.linkpdf >= 0 ? finalHeaderMap.linkpdf + 1 : linkPdfCol + 1;
+    var finalNomorSuratCol = finalHeaderMap.nomorsurat >= 0 ? finalHeaderMap.nomorsurat + 1 : nomorSuratCol + 1;
+    
     // Generate PDF Surat Jalan dan simpan ke Drive
     var pdfUrl = "";
     try {
@@ -132,17 +228,27 @@ function doPost(e) {
       var sumberStr = body.sumber || "-";
       var tujuanStr = body.tujuan || "-";
       var kodeVer = rowData[verifyCol];
-      var nomorSurat = generateNomorSurat(newRow, tanggalStr);
 
       var dibuatOlehStr = body.dibuat_oleh || body.dibuatOleh || "-";
       var driverStr = body.driver || "-";
       pdfUrl = generateSuratJalanPdf(tanggalStr, bibitStr, keluarNum, sumberStr, tujuanStr, kodeVer, nomorSurat, dibuatOlehStr, driverStr);
 
-      // Simpan link PDF ke sheet
-      sheet.getRange(newRow, linkPdfCol + 1).setValue(pdfUrl);
+      // Simpan link PDF dan nomor surat ke sheet
+      if (pdfUrl) {
+        sheet.getRange(newRow, finalLinkPdfCol).setValue(pdfUrl);
+      }
     } catch (pdfErr) {
       Logger.log("doPost: PDF generation gagal: " + pdfErr.message);
     }
+
+    // Return response dengan nomorSurat dan linkPdf
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      row: newRow,
+      nomorSurat: nomorSurat,
+      linkPdf: pdfUrl,
+      message: "Data berhasil disimpan"
+    })).setMimeType(ContentService.MimeType.JSON);
 
     // Auto-kirim notifikasi WhatsApp via Fonnte
     try {
@@ -152,13 +258,6 @@ function doPost(e) {
     } catch (fonntErr) {
       Logger.log("doPost: Fonnte auto-send gagal: " + fonntErr.message);
     }
-
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      row: newRow,
-      linkPdf: pdfUrl,
-      message: "Data berhasil disimpan"
-    })).setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
     Logger.log("doPost error: " + err.message);
@@ -217,6 +316,10 @@ function doGet(e) {
       total: safeNum(r, headerMap.total, 0),
       sumber: safeGet(r, headerMap.sumber, "").toString().trim(),
       tujuan: safeGet(r, headerMap.tujuan, "").toString().trim(),
+      nomorSurat: safeGet(r, headerMap.nomorsurat, "").toString().trim(),
+      statusApproval: safeGet(r, headerMap.statusapproval, "").toString().trim(),
+      approvedBy: safeGet(r, headerMap.approvedby, "").toString().trim(),
+      approvedAt: safeGet(r, headerMap.approvedat, "").toString().trim(),
       statusKirim: safeGet(r, headerMap.statuskirim, "").toString().trim(),
       kodeVerifikasi: safeGet(r, headerMap.kodeverifikasi, "").toString().trim(),
       linkPdf: safeGet(r, headerMap.linkpdf, "").toString().trim(),
@@ -461,6 +564,10 @@ function buildHeaderMap(sheet) {
     total: findAny(["total", "stok", "jumlahakhir"]),
     sumber: findAny(["sumber"]),
     tujuan: findAny(["tujuan", "lokasi", "tujuan bibit"]),
+    nomorsurat: findAny(["nomor surat", "nomor_surat", "nomorsurat", "no surat", "nosurat"]),
+    statusapproval: findAny(["status approval", "status_approval", "statusapproval"]),
+    approvedby: findAny(["approved by", "approved_by", "approvedby"]),
+    approvedat: findAny(["approved at", "approved_at", "approvedat"]),
     statuskirim: findAny(["status kirim", "status_kirim", "status"]),
     kodeverifikasi: findAny(["kode verifikasi", "kode_verifikasi", "kodeverifikasi"]),
     linkpdf: findAny(["link pdf", "link_pdf", "linkpdf"]),
@@ -530,7 +637,7 @@ function scanAndSendPendingRows() {
 
   for (var i = 1; i < allData.length; i++) {
     var row = allData[i];
-    if (!row || row.length === 0) continue;
+    if (!row || row.length === 0) continue;    app.use(cors({ origin: 'http://localhost:3001' }));
 
     var masukVal = safeNum(row, headerMap.masuk, 0);
     var keluarVal = safeNum(row, headerMap.keluar, 0);
@@ -550,7 +657,18 @@ function scanAndSendPendingRows() {
 
 // === Kirim Pesan ===
 function kirimPesanFonnte(sheet, row, headerMap, allData) {
-  var statusCol = headerMap.statuskirim + 1;
+  // Ensure status column exists - use 1-based indexing for sheet
+  var statusCol = 1;
+  if (headerMap.statuskirim >= 0) {
+    statusCol = headerMap.statuskirim + 1;
+  } else {
+    // Create column if not exists
+    var totalCols = sheet.getLastColumn();
+    sheet.getRange(1, totalCols + 1).setValue("Status Kirim");
+    totalCols = sheet.getLastColumn();
+    statusCol = totalCols;
+    headerMap.statuskirim = totalCols - 1;
+  }
 
   try {
     var vals = allData[row - 1] || [];

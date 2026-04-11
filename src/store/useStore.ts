@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import type { PlantStock, ActivityRecord, Shipment, Document, Alert, Notification, ApprovalRecord } from '../data/types';
-import { api } from '../data/mockData';
+
 import { fetchApiData, clearCache } from '../data/api';
 import { getLastUpdated } from '../data/indexedDb';
+import { derivePlants, deriveActivities, deriveShipments, deriveAlerts, api as mockApi } from '../data/mockData';
 import type { ApiRow } from '../data/api';
 
 function deriveNotifications(rows: ApiRow[]): Notification[] {
@@ -26,6 +27,8 @@ function deriveNotifications(rows: ApiRow[]): Notification[] {
       };
     });
 }
+
+import { approveDocument } from '../data/api';
 
 interface AppState {
   // Data
@@ -57,6 +60,7 @@ interface AppState {
   loadingAlerts: boolean;
   loadingNotifications: boolean;
   submitting: boolean;
+  approvalError: string | null;
 
   // Actions
   loadLastUpdated: () => Promise<void>;
@@ -131,6 +135,7 @@ export const useStore = create<AppState>((set, get) => ({
   loadingAlerts: false,
   loadingNotifications: false,
   submitting: false,
+  approvalError: null as string | null,
 
   loadLastUpdated: async () => {
     try {
@@ -139,33 +144,39 @@ export const useStore = create<AppState>((set, get) => ({
     } catch { /* ignore */ }
   },
 
+
   fetchPlants: async () => {
     set({ loadingPlants: true });
-    const plants = await api.getPlants();
+    const rows = await fetchApiData();
+    const plants = derivePlants(rows);
     set({ plants, loadingPlants: false });
   },
 
   fetchActivities: async () => {
     set({ loadingActivities: true });
-    const activities = await api.getActivities();
+    const rows = await fetchApiData();
+    const activities = deriveActivities(rows);
     set({ activities, loadingActivities: false });
   },
 
   fetchShipments: async () => {
     set({ loadingShipments: true });
-    const shipments = await api.getShipments();
+    const rows = await fetchApiData();
+    const shipments = deriveShipments(rows);
     set({ shipments, loadingShipments: false });
   },
 
   fetchDocuments: async () => {
     set({ loadingDocuments: true });
-    const documents = await api.getDocuments();
+    const documents = await mockApi.getDocuments();
     set({ documents, loadingDocuments: false });
   },
 
   fetchAlerts: async () => {
     set({ loadingAlerts: true });
-    const alerts = await api.getAlerts();
+    const rows = await fetchApiData();
+    const plants = derivePlants(rows);
+    const alerts = deriveAlerts(plants, rows);
     set({ alerts, loadingAlerts: false });
   },
 
@@ -191,7 +202,7 @@ export const useStore = create<AppState>((set, get) => ({
   submitActivity: async (record) => {
     set({ submitting: true });
     try {
-      const newActivity = await api.submitActivity(record);
+      const newActivity = await mockApi.submitActivity(record);
       clearCache();
       set((state) => ({
         activities: [newActivity, ...state.activities],
@@ -207,7 +218,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   generateDocument: async (shipmentId) => {
     set({ submitting: true });
-    const doc = await api.generateDocument(shipmentId);
+    const doc = await mockApi.generateDocument(shipmentId);
     set((state) => ({
       documents: [doc, ...state.documents],
       submitting: false,
@@ -226,6 +237,8 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
+  setApprovalError: (error: string | null) => set({ approvalError: error }),
+  
   markAllNotificationsRead: () => {
     set((state) => ({
       notifications: state.notifications.map((n) => ({ ...n, read: true })),
@@ -245,18 +258,11 @@ export const useStore = create<AppState>((set, get) => ({
     set({ isAdmin: false, adminPassword: '' });
   },
 
-  approveSuratJalan: (nomorSurat, approvedBy) => {
-    set((state) => {
-      const exists = state.approvals.find((a) => a.nomorSurat === nomorSurat);
-      if (exists) {
-        return {
-          approvals: state.approvals.map((a) =>
-            a.nomorSurat === nomorSurat
-              ? { ...a, status: 'approved' as const, approvedBy, approvedAt: new Date().toISOString() }
-              : a
-          ),
-        };
-      }
+  approveSuratJalan: async (nomorSurat: string, approvedBy: string) => {
+    const { refreshAll } = get();
+    // Optimistic update
+    set((state: any) => {
+      const exists = state.approvals.find((a: any) => a.nomorSurat === nomorSurat);
       const newApproval: ApprovalRecord = {
         id: `approval-${Date.now()}`,
         nomorSurat,
@@ -269,8 +275,29 @@ export const useStore = create<AppState>((set, get) => ({
         approvedBy,
         approvedAt: new Date().toISOString(),
       };
+      if (exists) {
+        return {
+          approvals: state.approvals.map((a: any) =>
+            a.nomorSurat === nomorSurat
+              ? { ...a, status: 'approved' as const, approvedBy, approvedAt: new Date().toISOString() }
+              : a
+          ),
+        };
+      }
       return { approvals: [newApproval, ...state.approvals] };
     });
+
+    try {
+      // Call backend API
+      await approveDocument(nomorSurat, approvedBy);
+      
+      // Refresh all data from Sheet (sync frontend with backend)
+      await refreshAll();
+    } catch (error) {
+      // Rollback optimistic update on error
+      await refreshAll();
+      throw error;
+    }
   },
 
   rejectSuratJalan: (nomorSurat, reason) => {

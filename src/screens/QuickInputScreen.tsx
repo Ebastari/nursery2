@@ -62,13 +62,55 @@ export function QuickInputScreen() {
     return map;
   }, [apiRows]);
 
-  const plantOptions = useMemo(
-    () => plants.map((p) => ({ value: p.name, label: p.name })),
-    [plants],
-  );
+  // --- Bibit manual input ---
+  const [manualBibit, setManualBibit] = useState('');
+  const [manualDibuatOleh, setManualDibuatOleh] = useState('');
+  const [manualDriver, setManualDriver] = useState('');
+
+  // Ambil bibit manual dari localStorage
+  const getManualList = (key: string) => {
+    try {
+      return JSON.parse(localStorage.getItem(key) || '[]');
+    } catch {
+      return [];
+    }
+  };
+  const saveManualList = (key: string, value: string) => {
+    const arr = getManualList(key);
+    if (!arr.includes(value)) {
+      arr.push(value);
+      localStorage.setItem(key, JSON.stringify(arr));
+    }
+  };
+
+  const manualBibitList = getManualList('manual_bibit');
+  const manualDibuatOlehList = getManualList('manual_dibuatOleh');
+  const manualDriverList = getManualList('manual_driver');
+
+  const plantOptions = useMemo(() => [
+    ...plants.map((p) => ({ value: p.name, label: p.name })),
+    ...manualBibitList.map((b: string) => ({ value: b, label: b })),
+    { value: '__manual__', label: 'Input Manual...' },
+  ], [plants, manualBibitList]);
+
+  const dibuatOlehOptionsFull = useMemo(() => [
+    ...dibuatOlehOptions,
+    ...manualDibuatOlehList.map((d: string) => ({ value: d, label: d })),
+    { value: '__manual__', label: 'Input Manual...' },
+  ], [dibuatOlehOptions, manualDibuatOlehList]);
+
+  const driverOptionsFull = useMemo(() => [
+    ...driverOptions,
+    ...manualDriverList.map((d: string) => ({ value: d, label: d })),
+    { value: '__manual__', label: 'Input Manual...' },
+  ], [driverOptions, manualDriverList]);
 
   const handleChange = (field: string, value: string) => {
     setInputForm({ [field]: value });
+    // Reset manual input jika ganti ke dropdown
+    if (field === 'bibit' && value !== '__manual__') setManualBibit('');
+    if (field === 'dibuatOleh' && value !== '__manual__') setManualDibuatOleh('');
+    if (field === 'driver' && value !== '__manual__') setManualDriver('');
   };
 
   // Stok saat ini untuk bibit yang dipilih
@@ -169,12 +211,21 @@ export function QuickInputScreen() {
               onChange={(e) => handleChange('tanggal', e.target.value)}
             />
 
+
             <Select
               label="Jenis Bibit"
               options={plantOptions}
               value={form.bibit}
               onChange={(e) => handleChange('bibit', e.target.value)}
             />
+            {form.bibit === '__manual__' && (
+              <Input
+                label="Nama Bibit Baru"
+                value={manualBibit}
+                onChange={e => setManualBibit(e.target.value)}
+                placeholder="Tulis nama bibit..."
+              />
+            )}
 
             {form.bibit && currentStok !== null && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
@@ -241,19 +292,37 @@ export function QuickInputScreen() {
               onChange={(e) => handleChange('tujuan', e.target.value)}
             />
 
+
             <Select
               label="Dibuat Oleh"
-              options={dibuatOlehOptions}
+              options={dibuatOlehOptionsFull}
               value={form.dibuatOleh}
               onChange={(e) => handleChange('dibuatOleh', e.target.value)}
             />
+            {form.dibuatOleh === '__manual__' && (
+              <Input
+                label="Nama Pembuat Baru"
+                value={manualDibuatOleh}
+                onChange={e => setManualDibuatOleh(e.target.value)}
+                placeholder="Tulis nama pembuat..."
+              />
+            )}
+
 
             <Select
               label="Driver"
-              options={driverOptions}
+              options={driverOptionsFull}
               value={form.driver}
               onChange={(e) => handleChange('driver', e.target.value)}
             />
+            {form.driver === '__manual__' && (
+              <Input
+                label="Nama Driver Baru"
+                value={manualDriver}
+                onChange={e => setManualDriver(e.target.value)}
+                placeholder="Tulis nama driver..."
+              />
+            )}
           </Card>
 
           {/* Fixed bottom submit */}
@@ -285,8 +354,36 @@ export function QuickInputScreen() {
               size="lg"
               loading={submitting}
               icon={<Plus className="w-5 h-5" />}
-              onClick={handleSubmit}
-              disabled={!form.bibit || !isOnline}
+              onClick={async () => {
+                // Simpan manual bibit jika ada
+                let bibitVal = form.bibit;
+                if (form.bibit === '__manual__' && manualBibit.trim()) {
+                  saveManualList('manual_bibit', manualBibit.trim());
+                  bibitVal = manualBibit.trim();
+                  setInputForm({ bibit: bibitVal });
+                }
+                let dibuatOlehVal = form.dibuatOleh;
+                if (form.dibuatOleh === '__manual__' && manualDibuatOleh.trim()) {
+                  saveManualList('manual_dibuatOleh', manualDibuatOleh.trim());
+                  dibuatOlehVal = manualDibuatOleh.trim();
+                  setInputForm({ dibuatOleh: dibuatOlehVal });
+                }
+                let driverVal = form.driver;
+                if (form.driver === '__manual__' && manualDriver.trim()) {
+                  saveManualList('manual_driver', manualDriver.trim());
+                  driverVal = manualDriver.trim();
+                  setInputForm({ driver: driverVal });
+                }
+                // Pastikan field sudah terisi
+                if (!bibitVal || !isOnline) return;
+                await handleSubmit();
+              }}
+              disabled={
+                (!form.bibit || (form.bibit === '__manual__' && !manualBibit.trim())) ||
+                (!form.dibuatOleh || (form.dibuatOleh === '__manual__' && !manualDibuatOleh.trim())) ||
+                (!form.driver || (form.driver === '__manual__' && !manualDriver.trim())) ||
+                !isOnline
+              }
               className="w-full"
             >
               {isOnline ? 'Simpan Data' : 'Offline — Tidak Bisa Simpan'}

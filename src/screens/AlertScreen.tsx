@@ -4,7 +4,8 @@ import { Card } from '../components/Card';
 import { Badge } from '../components/Badge';
 import { LoadingState } from '../components/LoadingState';
 import { EmptyState } from '../components/EmptyState';
-import { AlertTriangle, PackageMinus, Leaf, FileWarning, Bell } from 'lucide-react';
+import { AlertTriangle, PackageMinus, Leaf, FileWarning, Bell, Shield } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import type { AlertType, AlertSeverity } from '../data/types';
 
 function getAlertIcon(type: AlertType) {
@@ -48,7 +49,8 @@ function getAlertIconColor(severity: AlertSeverity): string {
 }
 
 export function AlertScreen() {
-  const { alerts, loadingAlerts, fetchAlerts, markAlertRead } = useStore();
+  const { alerts, loadingAlerts, fetchAlerts, markAlertRead, isAdmin } = useStore();
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchAlerts();
@@ -62,6 +64,18 @@ export function AlertScreen() {
 
   return (
     <div className="fade-in space-y-4">
+      {/* Submenu Approval untuk admin */}
+      {isAdmin && (
+        <div className="mb-4">
+          <button
+            onClick={() => navigate('/approval')}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 font-semibold hover:bg-emerald-100 transition-colors"
+          >
+            <Shield className="w-5 h-5" />
+            Menu Approval Surat Jalan
+          </button>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Peringatan</h1>
