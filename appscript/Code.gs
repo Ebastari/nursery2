@@ -637,7 +637,7 @@ function scanAndSendPendingRows() {
 
   for (var i = 1; i < allData.length; i++) {
     var row = allData[i];
-    if (!row || row.length === 0) continue;    app.use(cors({ origin: 'http://localhost:3001' }));
+    if (!row || row.length === 0) continue;    app.use(cors({ origin: 'http://localhost:5173\\\' }));
 
     var masukVal = safeNum(row, headerMap.masuk, 0);
     var keluarVal = safeNum(row, headerMap.keluar, 0);
@@ -701,28 +701,44 @@ function kirimPesanFonnte(sheet, row, headerMap, allData) {
     var sr = (totalMasukAgregat > 0) ? (totalHidupAgregat / totalMasukAgregat) * 100 : 100;
     var rp = (totalMasukAgregat > 0) ? (totalKeluarAgregat / totalMasukAgregat) * 100 : 0;
 
-    // === Rekapan per jenis bibit ===
-    var rekap = {};
+    // === Rekapan per jenis bibit PER TANGGAL (harian) ===
+    var rekapHarian = {};
+    // Ambil tanggal baris yang sedang diproses (format sheet)
+    var tanggalTarget = safeGet(vals, header.tanggal, "");
+    // Normalisasi tanggal ke string (jika Date, ubah ke yyyy-mm-dd)
+    if (tanggalTarget instanceof Date && !isNaN(tanggalTarget)) {
+      tanggalTarget = Utilities.formatDate(tanggalTarget, "Asia/Makassar", "yyyy-MM-dd");
+    } else if (typeof tanggalTarget === "string" && tanggalTarget.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+      // Jika format dd/mm/yyyy, ubah ke yyyy-mm-dd
+      var parts = tanggalTarget.split("/");
+      tanggalTarget = parts[2] + "-" + parts[1].padStart(2, '0') + "-" + parts[0].padStart(2, '0');
+    }
 
     for (var i = 1; i < allData.length; i++) {
       var r = allData[i];
       var jenis = (safeGet(r, header.bibit, "") || "").toString().trim();
       if (!jenis) continue;
-
-      if (!rekap[jenis]) {
-        rekap[jenis] = { masuk: 0, mati: 0, keluar: 0 };
+      var tgl = safeGet(r, header.tanggal, "");
+      // Normalisasi tanggal baris
+      if (tgl instanceof Date && !isNaN(tgl)) {
+        tgl = Utilities.formatDate(tgl, "Asia/Makassar", "yyyy-MM-dd");
+      } else if (typeof tgl === "string" && tgl.match(/^\d{2}\/\d{2}\/\d{4}$/)) {
+        var p = tgl.split("/");
+        tgl = p[2] + "-" + p[1].padStart(2, '0') + "-" + p[0].padStart(2, '0');
       }
-
-      rekap[jenis].masuk += safeNum(r, header.masuk, 0);
-      rekap[jenis].mati += safeNum(r, header.mati, 0);
-      rekap[jenis].keluar += safeNum(r, header.keluar, 0);
+      if (tgl !== tanggalTarget) continue;
+      if (!rekapHarian[jenis]) {
+        rekapHarian[jenis] = { masuk: 0, mati: 0, keluar: 0 };
+      }
+      rekapHarian[jenis].masuk += safeNum(r, header.masuk, 0);
+      rekapHarian[jenis].mati += safeNum(r, header.mati, 0);
+      rekapHarian[jenis].keluar += safeNum(r, header.keluar, 0);
     }
 
-    var teksRekap = "Rekapitulasi Jumlah Bibit:\n";
-    Object.keys(rekap).sort().forEach(function (jenis) {
-      var d = rekap[jenis];
+    var teksRekap = "Rekapitulasi Jumlah Bibit (Harian):\n";
+    Object.keys(rekapHarian).sort().forEach(function (jenis) {
+      var d = rekapHarian[jenis];
       var stok = Math.max(0, d.masuk - d.keluar - d.mati);
-
       var statusStok = "";
       if (stok <= 0) {
         statusStok = "🚨 Habis";
@@ -731,8 +747,7 @@ function kirimPesanFonnte(sheet, row, headerMap, allData) {
       } else {
         statusStok = "✅ Aman";
       }
-
-      teksRekap += "• " + jenis.toUpperCase() + ": " + stok.toLocaleString('id-ID') + " (" + statusStok + ")\n";
+      teksRekap += "• " + jenis.toUpperCase() + ": " + d.keluar.toLocaleString('id-ID') + " keluar, stok: " + stok.toLocaleString('id-ID') + " (" + statusStok + ")\n";
     });
 
     // --- Analisis TIM LAPANGAN (SEMUA JENIS BIBIT) ---
@@ -969,6 +984,10 @@ function kirimPesanFonnte(sheet, row, headerMap, allData) {
         muteHttpExceptions: true
       };
       var res = UrlFetchApp.fetch("https://api.fonnte.com/send", options);
+      // Jika ada endpoint Google Apps Script yang hardcode, ganti di sini
+      // Contoh: var endpoint = "https://script.google.com/macros/s/AKfycbyVIkBO4WArbwdTBZenv--cea9nSwfUd3uRPgFHo5kXEdy0hwF6se0OspRvn711RTHm/exec";
+      // Pastikan endpoint digunakan di logic fetch data, bukan di Fonnte
+      // (Tidak ditemukan endpoint lama di file ini, hanya endpoint Fonnte)
       var resCode = res.getResponseCode();
       var resBody = res.getContentText();
       Logger.log("Fonnte response [" + targets[t].trim() + "]: " + resCode + " - " + resBody);

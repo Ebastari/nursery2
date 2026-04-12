@@ -1,11 +1,14 @@
+import React from 'react';
+
 interface BadgeProps {
   children: React.ReactNode;
   variant?: 'success' | 'warning' | 'danger' | 'info' | 'neutral';
   size?: 'sm' | 'md';
   dot?: boolean;
+  className?: string;
 }
 
-export function Badge({ children, variant = 'neutral', size = 'sm', dot = false }: BadgeProps) {
+export function Badge({ children, variant = 'neutral', size = 'sm', dot = false, className = '' }: BadgeProps) {
   const variants = {
     success: 'bg-emerald-50 text-emerald-700 border-emerald-200/80 shadow-[0_0_0_1px_rgba(16,185,129,0.06)]',
     warning: 'bg-amber-50 text-amber-700 border-amber-200/80 shadow-[0_0_0_1px_rgba(245,158,11,0.06)]',
@@ -27,8 +30,11 @@ export function Badge({ children, variant = 'neutral', size = 'sm', dot = false 
     md: 'px-2.5 py-1 text-xs',
   };
 
+  const baseClasses = `inline-flex items-center gap-1.5 font-semibold rounded-full border ${variants[variant]} ${sizes[size]}`;
+  const mergedClass = `${baseClasses} ${className}`;
+
   return (
-    <span className={`inline-flex items-center gap-1.5 font-semibold rounded-full border ${variants[variant]} ${sizes[size]}`}>
+    <span className={mergedClass}>
       {dot && <span className={`w-1.5 h-1.5 rounded-full ${dotColors[variant]}`} />}
       {children}
     </span>

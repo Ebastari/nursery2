@@ -26,6 +26,17 @@ import {
 } from "lucide-react";
 
 export default function App() {
+    // Top 6 distribusi bibit (berdasarkan keluar)
+    const topBibit = useMemo(() => {
+      const total = rekap.reduce((a, b) => a + b.keluar, 0) || 1;
+      return rekap
+        .map((r) => ({
+          ...r,
+          percent: (r.keluar / total) * 100,
+        }))
+        .sort((a, b) => b.keluar - a.keluar)
+        .slice(0, 6);
+    }, [rekap]);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -48,15 +59,17 @@ export default function App() {
   const bulanOpts = useMemo(() => uniqueBulan(rows), [rows]);
   const bibitOpts = useMemo(() => ["Semua", ...uniqueBibit(rows)], [rows]);
 
-  const filtered = useMemo(
-    () => filterRows(rows, { tujuan, bulan, bibit }),
-    [rows, tujuan, bulan, bibit]
+  // Filter khusus untuk distribusi ke Tim Basri Disposal CK Blok 3
+  const tujuanBasri = "Tim Basri Disposal CK Blok 3";
+  const filteredBasri = useMemo(
+    () => rows.filter(r => r.tujuan && r.tujuan.trim().toLowerCase() === tujuanBasri.toLowerCase()),
+    [rows]
   );
 
-  const summary = useMemo(() => getSummary(filtered), [filtered]);
-  const bibitTypes = useMemo(() => uniqueBibit(filtered), [filtered]);
-  const daily = useMemo(() => getDailyData(filtered, bibitTypes), [filtered, bibitTypes]);
-  const rekap = useMemo(() => getRekapPerBibit(filtered), [filtered]);
+  const summary = useMemo(() => getSummary(filteredBasri), [filteredBasri]);
+  const bibitTypes = useMemo(() => uniqueBibit(filteredBasri), [filteredBasri]);
+  const daily = useMemo(() => getDailyData(filteredBasri, bibitTypes), [filteredBasri, bibitTypes]);
+  const rekap = useMemo(() => getRekapPerBibit(filteredBasri), [filteredBasri]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -154,6 +167,28 @@ export default function App() {
             {/* Charts */}
             <LineChartCard data={daily} />
             <BarChartCard data={daily} bibitTypes={bibitTypes} />
+
+            {/* Distribusi Bibit (Top 6) */}
+            <div className="space-y-2">
+              <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                Distribusi Bibit (Top 6)
+              </h3>
+              {topBibit.map((r, i) => (
+                <div key={r.bibit} className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ backgroundColor: getBibitColor(i) }}>{r.bibit.slice(0, 2).toUpperCase()}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{r.bibit}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold text-gray-900">{r.keluar.toLocaleString("id-ID")} bibit</span>
+                    <span className="ml-2 text-[10px] text-gray-400">{r.percent.toFixed(1)}%</span>
+                  </div>
+                </div>
+              ))}
+              {topBibit.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">Tidak ada data</p>
+              )}
+            </div>
 
             {/* Rekap Stok per Bibit */}
             <div className="space-y-2">

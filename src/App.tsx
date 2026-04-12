@@ -25,8 +25,7 @@ function App() {
           <Route path="/alerts" element={<AlertScreen />} />
           <Route path="/surat-jalan" element={<SuratJalanScreen />} />
           <Route path="/verify" element={<VerifyScreen />} />
-          <Route path="/approval" element={<ApprovalScreenDIAGNOSTIC />} />
-
+          <Route path="/approval" element={<ApprovalScreen />} />
         </Route>
       </Routes>
     </BrowserRouter>
@@ -34,3 +33,4 @@ function App() {
 }
 
 export default App;
+

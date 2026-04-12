@@ -151,7 +151,7 @@ export const api = {
     return deriveAlerts(plants, rows);
   },
 async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord & { linkPdf?: string }> {
-    const { fetchApiData: _fetch, clearCache: _clear, API_URL } = await import('./api');
+    const { fetchApiData: _fetch, clearCache: _clear } = await import('./api');
 
     // Prepare GAS payload - map fields + ensure tanggal
     const today = new Date().toISOString().split('T')[0];
@@ -167,10 +167,20 @@ async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord
       driver: record.driver || '',
     };
 
-    // Use local proxy server to handle GAS requests (updated port)
-    const PROXY_URL = 'http://localhost:3001/api/proxy';
+    // Direct to Google Apps Script (bypass proxy issues)
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyVIkBO4WArbwdTBZenv--cea9nSwfUd3uRPgFHo5kXEdy0hwF6se0OspRvn711RTHm/exec';
+    const isDev = import.meta.env?.DEV;
 
-    const res = await fetch(PROXY_URL, {
+    // Try localhost proxy first, fallback to direct GAS
+    let apiUrl = 'http://localhost:3001/api/submit';
+    try {
+      const testRes = await fetch(apiUrl, { method: 'HEAD' });
+    } catch {
+      // Proxy unavailable, use direct GAS
+      apiUrl = GAS_URL;
+    }
+
+    const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(gasPayload),

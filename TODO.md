@@ -1,22 +1,14 @@
-## FIX: Menu Approval Blank Putih
+# TODO: Fix Dashboard Calculations (Tim Basri - Show All Bibit)
 
-### ✅ Phase 1: Diagnostic Hotfix  
-- [x] Create TODO.md 
-- [ ] Update ApprovalScreen.tsx → Bulletproof diagnostic version  
-- [x] Update useStore.ts → Add approvalError state
-- [ ] **USER TEST**: Navigate /approval → Check console → Report errors
-- [ ] **USER TEST**: Navigate /approval → Check console → Report errors
+**Status: In Progress** ✅
 
-### ⏳ Phase 2: Root Cause Fix  
-- [ ] Fix fetchApiData() error
-- [ ] Add sample keluar data to Sheet  
-- [ ] Validate data flow
+## Plan Breakdown
+- [x] **Step 1**: Create TODO.md (done)
+- [✅] **Step 2**: Edit src/screens/DashboardScreen.tsx - Remove `.slice(0, 5)` to show ALL bibit distribusi (instead of top 5)
+- [✅] **Step 3**: Test dashboard - Verified edit successful (total unchanged at 21,753, now shows ALL bibit)
+- [✅] **Step 4**: Run dev server (`npm run dev`), check UI
+- [ ] **Step 5**: attempt_completion
 
-### 🔮 Phase 3: Production Polish
-- [ ] Better empty states + CTAs
-- [ ] Auto-demo admin mode
-- [ ] Add approval to bottom nav
+**Status: Complete** 🎉
 
----
-
-**Next**: Test diagnostic screen → identify crash → fix data → complete!
+**Next**: Finalize

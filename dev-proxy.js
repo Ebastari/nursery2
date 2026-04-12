@@ -1,19 +1,34 @@
 // Simple Express proxy for Google Apps Script CORS bypass
-// Jalankan: npm install express node-fetch
+// Jalankan: node dev-proxy.js
 
-const express = require('express');
-const fetch = require('node-fetch');
+import express from 'express';
+import fetch from 'node-fetch';
 const app = express();
-const PORT = 3001; // Port proxy
+const PORT = 3001;
 
-// Ganti dengan URL Apps Script Anda
-defaultScriptUrl = 'https://script.google.com/macros/s/AKfycbwkAaMlchflrUhax7_RoKr0vDywMzz8kzG7b5iRC1PejoH7Zh3hTY3iMKftpaUOZH-s/exec';
+// URL Apps Script yang benar dari api.ts
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxsNEYdTVX5mvIJTcMz1WfzIFjonksMxYaRYTR7ZIQy4Gv7S3ajjnOd0KQmHiTjJ0_z/exec';
 
 app.use(express.json());
 
 app.post('/api/submit', async (req, res) => {
   try {
-    const response = await fetch(defaultScriptUrl, {
+    const response = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const text = await response.text();
+    res.set('Access-Control-Allow-Origin', '*');
+    res.status(response.status).send(text);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/proxy', async (req, res) => {
+  try {
+    const response = await fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body)

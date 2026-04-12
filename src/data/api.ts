@@ -81,7 +81,7 @@ export interface DropdownOptions {
 
 
 export const API_URL =
-  "https://script.google.com/macros/s/AKfycbxsNEYdTVX5mvIJTcMz1WfzIFjonksMxYaRYTR7ZIQy4Gv7S3ajjnOd0KQmHiTjJ0_z/exec";
+  "https://script.google.com/macros/s/AKfycbyVIkBO4WArbwdTBZenv--cea9nSwfUd3uRPgFHo5kXEdy0hwF6se0OspRvn711RTHm/exec";
 
 let cachedRows: ApiRow[] | null = null;
 
@@ -134,6 +134,9 @@ export async function approveDocument(nomorSurat: string, approvedBy: string): P
 
 // Pola cache-then-network: tampilkan data dari IndexedDB dulu, lalu update dari API jika online
 export async function fetchApiData(): Promise<ApiRow[]> {
+  const cacheBust = Date.now().toString();
+  const apiUrl = `${API_URL}?t=${cacheBust}`;
+  
   // 1. Ambil dari cache memory jika ada
   if (cachedRows) return cachedRows;
 
@@ -143,7 +146,7 @@ export async function fetchApiData(): Promise<ApiRow[]> {
     cachedRows = offlineRows;
     // Fetch ke API di background untuk update data
     if (navigator.onLine) {
-      fetch(API_URL, { redirect: "follow" })
+      fetch(apiUrl, { redirect: "follow" })
         .then(async (res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const text = await res.text();
@@ -163,7 +166,7 @@ export async function fetchApiData(): Promise<ApiRow[]> {
 
   // 3. Jika cache kosong, fetch ke API (pertama kali atau cache hilang)
   if (navigator.onLine) {
-    const res = await fetch(API_URL, { redirect: "follow" });
+    const res = await fetch(apiUrl, { redirect: "follow" });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const text = await res.text();
     if (text.trimStart().startsWith("<")) throw new Error("Apps Script error — bukan JSON");
@@ -176,6 +179,11 @@ export async function fetchApiData(): Promise<ApiRow[]> {
 
   // 4. Jika offline dan cache kosong
   throw new Error("Tidak ada koneksi internet dan tidak ada data tersimpan.");
+}
+
+export function invalidateCache() {
+  cachedRows = null;
+  cachedDropdowns = null;
 }
 
 let cachedDropdowns: DropdownOptions | null = null;

@@ -41,13 +41,7 @@ export function ApprovalScreenDIAGNOSTIC() {
   const [debugInfo, setDebugInfo] = useState('🔍 Loading diagnostics...');
   const navigate = useNavigate();
   
-  const store = useStore();
-  console.log('🟢 Store dump:', store);
-  console.log('🟢 isAdmin:', store.isAdmin);
-  const { isAdmin, clearAdminMode, approvals, documents, fetchDocuments, approvalError } = store;
-  console.log('🟢 approvalError:', store.approvalError);
-  
-  const { isAdmin, clearAdminMode, approvals, documents, fetchDocuments, approvalError, setApprovalError } = store;
+  const { isAdmin, clearAdminMode, approvals, documents, fetchDocuments, approvalError } = useStore();
   
   const [items, setItems] = useState<SuratJalanItem[]>([]);
   const [loading, setLoading] = useState(true);

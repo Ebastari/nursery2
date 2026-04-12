@@ -60,7 +60,16 @@ export function getBibitColor(index: number): string {
 
 // === Helpers ===
 export function uniqueBibit(rows: Row[]): string[] {
-  return [...new Set(rows.map((r) => r.bibit).filter(Boolean))].sort();
+  // Hanya bibit yang diizinkan
+  const allowed = [
+    "SENGON POTTING",
+    "NANGKA",
+    "AKASIA",
+    "MALAPARI",
+    "KALIANDRA MERAH",
+    "KALIANDRA PUTIH"
+  ];
+  return allowed.filter((b) => rows.some((r) => r.bibit === b));
 }
 
 export function uniqueTujuan(rows: Row[]): string[] {
@@ -75,7 +84,17 @@ export function filterRows(
   rows: Row[],
   filters: { tujuan: string; bulan: string; bibit: string }
 ): Row[] {
+  // Filter hanya bibit yang diizinkan
+  const allowed = [
+    "SENGON POTTING",
+    "NANGKA",
+    "AKASIA",
+    "MALAPARI",
+    "KALIANDRA MERAH",
+    "KALIANDRA PUTIH"
+  ];
   return rows.filter((r) => {
+    if (!allowed.includes(r.bibit)) return false;
     if (filters.tujuan !== "Semua" && r.tujuan !== filters.tujuan) return false;
     if (filters.bulan !== "Semua" && r.bulan !== filters.bulan) return false;
     if (filters.bibit !== "Semua" && r.bibit !== filters.bibit) return false;
@@ -91,8 +110,18 @@ export type Summary = {
 };
 
 export function getSummary(rows: Row[]): Summary {
+  // Hanya bibit yang diizinkan
+  const allowed = [
+    "SENGON POTTING",
+    "NANGKA",
+    "AKASIA",
+    "MALAPARI",
+    "KALIANDRA MERAH",
+    "KALIANDRA PUTIH"
+  ];
   let totalMasuk = 0, totalKeluar = 0, totalMati = 0;
   for (const r of rows) {
+    if (!allowed.includes(r.bibit)) continue;
     totalMasuk += r.masuk;
     totalKeluar += r.keluar;
     totalMati += r.mati;
@@ -110,8 +139,18 @@ export type DailyChart = { tanggal: string; total: number; [bibit: string]: stri
 
 export function getDailyData(rows: Row[], bibitTypes: string[]): DailyChart[] {
   const map = new Map<string, DailyChart>();
+  // Hanya bibit yang diizinkan
+  const allowed = [
+    "SENGON POTTING",
+    "NANGKA",
+    "AKASIA",
+    "MALAPARI",
+    "KALIANDRA MERAH",
+    "KALIANDRA PUTIH"
+  ];
   for (const r of rows) {
     if (!r.tanggal) continue;
+    if (!allowed.includes(r.bibit)) continue;
     if (!map.has(r.tanggal)) {
       const entry: DailyChart = { tanggal: r.tanggal, total: 0 };
       for (const b of bibitTypes) entry[b] = 0;
@@ -130,12 +169,22 @@ export function getDailyData(rows: Row[], bibitTypes: string[]): DailyChart[] {
 export type BibitRekap = { bibit: string; masuk: number; keluar: number; mati: number; stok: number };
 
 export function getRekapPerBibit(rows: Row[]): BibitRekap[] {
+  // Hanya bibit yang diizinkan
+  const allowed = [
+    "SENGON POTTING",
+    "NANGKA",
+    "AKASIA",
+    "MALAPARI",
+    "KALIANDRA MERAH",
+    "KALIANDRA PUTIH"
+  ];
   const map = new Map<string, BibitRekap>();
+  for (const b of allowed) {
+    map.set(b, { bibit: b, masuk: 0, keluar: 0, mati: 0, stok: 0 });
+  }
   for (const r of rows) {
     if (!r.bibit) continue;
-    if (!map.has(r.bibit)) {
-      map.set(r.bibit, { bibit: r.bibit, masuk: 0, keluar: 0, mati: 0, stok: 0 });
-    }
+    if (!allowed.includes(r.bibit)) continue;
     const entry = map.get(r.bibit)!;
     entry.masuk += r.masuk;
     entry.keluar += r.keluar;
@@ -144,5 +193,6 @@ export function getRekapPerBibit(rows: Row[]): BibitRekap[] {
   for (const entry of map.values()) {
     entry.stok = Math.max(0, entry.masuk - entry.keluar - entry.mati);
   }
-  return [...map.values()].sort((a, b) => a.bibit.localeCompare(b.bibit));
+  // Tampilkan semua bibit di allowed, meski stok 0, asalkan ada transaksi masuk/keluar
+  return [...map.values()].filter(e => e.masuk > 0 || e.keluar > 0 || e.mati > 0).sort((a, b) => a.bibit.localeCompare(b.bibit));
 }
