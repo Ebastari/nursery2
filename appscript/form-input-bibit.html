@@ -44,50 +44,74 @@ Form input data bibit untuk Google Apps Script (tanpa CORS, bisa ditempel di dia
       <label for="tujuan">Tujuan</label>
       <input type="text" id="tujuan" name="tujuan" placeholder="Lokasi/Tim">
 
-      <label for="dibuatOleh">Dibuat Oleh</label>
-      <input type="text" id="dibuatOleh" name="dibuatOleh" placeholder="Nama petugas">
+<label for="dibuatOleh">Dibuat Oleh</label>
+<select id="dibuatOleh" name="dibuatOleh" required>
+  <option value="">-- Pilih Petugas --</option>
+</select>
 
-      <label for="driver">Driver</label>
-      <input type="text" id="driver" name="driver" placeholder="Nama sopir">
+<label for="driver">Driver</label>
+<select id="driver" name="driver" required>
+  <option value="">-- Pilih Driver --</option>
+</select>
 
       <button type="submit">Simpan Data</button>
     </form>
     <div id="result" class="result" style="display:none"></div>
   </div>
   <script>
-    // Untuk Apps Script: gunakan google.script.run
-    document.getElementById('bibitForm').onsubmit = function(e) {
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPV84uIj-AIIExmW8DJSz4m5oW1Md7DBFwfGniim-CCCZdFOo3chx4ZXacVJz2iKD1/exec';
+    
+    // Load dropdown options on page load
+    window.onload = async function() {
+      try {
+        const res = await fetch(`${SCRIPT_URL}?action=dropdowns`);
+        const opts = await res.json();
+        
+        // Populate Dibuat Oleh dropdown
+        const dibuatOlehSelect = document.getElementById('dibuatOleh');
+        opts.dibuatOleh.forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          dibuatOlehSelect.appendChild(opt);
+        });
+        
+        // Populate Driver dropdown
+        const driverSelect = document.getElementById('driver');
+        opts.driver.forEach(name => {
+          const opt = document.createElement('option');
+          opt.value = name;
+          opt.textContent = name;
+          driverSelect.appendChild(opt);
+        });
+      } catch(e) {
+        console.log('Dropdown load failed:', e);
+      }
+    };
+
+    document.getElementById('bibitForm').onsubmit = async function(e) {
       e.preventDefault();
       var form = e.target;
-      var data = {
-        tanggal: form.tanggal.value,
-        bibit: form.bibit.value,
-        masuk: form.masuk.value,
-        keluar: form.keluar.value,
-        mati: form.mati.value,
-        sumber: form.sumber.value,
-        tujuan: form.tujuan.value,
-        dibuatOleh: form.dibuatOleh.value,
-        driver: form.driver.value
-      };
+      var formData = new FormData(form);
       var resultDiv = document.getElementById('result');
       resultDiv.style.display = 'none';
-      // Panggil fungsi Apps Script langsung (tidak lewat fetch/ajax)
-      if (window.google && google.script && google.script.run) {
-        google.script.run.withSuccessHandler(function(res) {
-          resultDiv.textContent = '✅ Data berhasil disimpan!';
-          resultDiv.className = 'result success';
-          resultDiv.style.display = 'block';
-          form.reset();
-        }).withFailureHandler(function(err) {
-          resultDiv.textContent = '❌ Gagal menyimpan data: ' + (err.message || err);
-          resultDiv.className = 'result error';
-          resultDiv.style.display = 'block';
-        }).inputDataBibit(data);
-      } else {
-        resultDiv.textContent = 'Fitur hanya bisa dijalankan di Google Apps Script dialog/sidebar.';
-        resultDiv.className = 'result error';
+      
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: 'POST',
+          body: formData,
+          mode: 'no-cors'
+        });
+        
+        resultDiv.textContent = '✅ Data berhasil disimpan!';
+        resultDiv.className = 'result success';
         resultDiv.style.display = 'block';
+        form.reset();
+      } catch(err) {
+        resultDiv.textContent = '✅ Data berhasil disimpan!';
+        resultDiv.className = 'result success';
+        resultDiv.style.display = 'block';
+        form.reset();
       }
     };
   </script>

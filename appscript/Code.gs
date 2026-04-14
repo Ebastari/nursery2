@@ -156,7 +156,12 @@ function getDropdownOptions() {
 // === Handler CORS Preflight OPTIONS ===
 function doOptions(e) {
   return ContentService.createTextOutput()
-    .setMimeType(ContentService.MimeType.JSON);
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type"
+    });
 }
 
 // === Web API — doPost (Terima data dari form) ===
@@ -392,7 +397,7 @@ function savePdfLinkToSheet(nomorSurat, tanggal, bibit, tujuan, linkPdf, dibuatO
       Logger.log("doPost: Fonnte auto-send gagal: " + fonntErr.message);
     }
 
-    // Return response dengan nomorSurat dan linkPdf
+     // Return response dengan nomorSurat dan linkPdf
     return ContentService.createTextOutput(JSON.stringify({
       success: true,
       row: newRow,
@@ -400,7 +405,10 @@ function savePdfLinkToSheet(nomorSurat, tanggal, bibit, tujuan, linkPdf, dibuatO
       linkPdf: pdfUrl,
       message: "Data berhasil disimpan"
     }))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeaders({
+        "Access-Control-Allow-Origin": "*"
+      });
 
   } catch (err) {
     Logger.log("doPost error: " + err.message);
@@ -428,7 +436,10 @@ function doGet(e) {
   if (action === "dropdowns") {
     var opts = getDropdownOptions();
     return ContentService.createTextOutput(JSON.stringify(opts))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeaders({
+        "Access-Control-Allow-Origin": "*"
+      });
   }
 
   // === Verify endpoint: ?verify=KODE10CHAR ===
@@ -476,7 +487,10 @@ function doGet(e) {
 
   var output = JSON.stringify({ data: rows, count: rows.length, timestamp: new Date().toISOString() });
   return ContentService.createTextOutput(output)
-    .setMimeType(ContentService.MimeType.JSON);
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({
+      "Access-Control-Allow-Origin": "*"
+    });
 }
 
 // === Verify handler — cari kode verifikasi di sheet ===
