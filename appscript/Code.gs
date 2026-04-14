@@ -1,3 +1,117 @@
+// === Fungsi untuk menerima input dari HTML dialog/sidebar ===
+function inputDataBibit(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
+  if (!sheet) throw new Error('Sheet tidak ditemukan');
+  var headerMap = buildHeaderMap(sheet);
+  var lastRow = sheet.getLastRow();
+  var newRow = lastRow + 1;
+  var totalCols = sheet.getLastColumn();
+  // Pastikan kolom utama ada
+  var colsNeeded = [
+    { name: "Nomor Surat", mapKey: "nomorsurat" },
+    { name: "Status Approval", mapKey: "statusapproval" },
+    { name: "Approved By", mapKey: "approvedby" },
+    { name: "Approved At", mapKey: "approvedat" },
+    { name: "Dibuat Oleh", mapKey: "dibuatoleh" },
+    { name: "Driver", mapKey: "driver" },
+    { name: "Kode Verifikasi", mapKey: "kodeverifikasi" },
+    { name: "Link PDF", mapKey: "linkpdf" },
+    { name: "Status Kirim", mapKey: "statuskirim" }
+  ];
+  for (var c = 0; c < colsNeeded.length; c++) {
+    var colName = colsNeeded[c].name;
+    var mapKey = colsNeeded[c].mapKey;
+    if (headerMap[mapKey] === -1) {
+      totalCols++;
+      sheet.getRange(1, totalCols).setValue(colName);
+    }
+  }
+  totalCols = sheet.getLastColumn();
+  headerMap = buildHeaderMap(sheet);
+  var rowData = new Array(totalCols).fill("");
+  if (headerMap.tanggal >= 0) rowData[headerMap.tanggal] = data.tanggal || "";
+  if (headerMap.bulan >= 0 && data.tanggal) {
+    var d = new Date(data.tanggal + "T00:00:00");
+    if (!isNaN(d.getTime())) {
+      rowData[headerMap.bulan] = Utilities.formatDate(d, "Asia/Makassar", "MMMM yyyy");
+    }
+  }
+  if (headerMap.bibit >= 0) rowData[headerMap.bibit] = data.bibit || "";
+  if (headerMap.masuk >= 0) rowData[headerMap.masuk] = Number(data.masuk) || 0;
+  if (headerMap.keluar >= 0) rowData[headerMap.keluar] = Number(data.keluar) || 0;
+  if (headerMap.mati >= 0) rowData[headerMap.mati] = Number(data.mati) || 0;
+  if (headerMap.sumber >= 0) rowData[headerMap.sumber] = data.sumber || "";
+  if (headerMap.tujuan >= 0) rowData[headerMap.tujuan] = data.tujuan || "";
+  // Kolom Dibuat Oleh
+  var dibuatOlehCol = headerMap.dibuatoleh;
+  if (dibuatOlehCol === -1) {
+    totalCols++;
+    sheet.getRange(1, totalCols).setValue("Dibuat Oleh");
+    dibuatOlehCol = totalCols - 1;
+  }
+  rowData[dibuatOlehCol] = data.dibuatOleh || "";
+  // Kolom Driver
+  var driverCol = headerMap.driver;
+  if (driverCol === -1) {
+    totalCols++;
+    sheet.getRange(1, totalCols).setValue("Driver");
+    driverCol = totalCols - 1;
+  }
+  rowData[driverCol] = data.driver || "";
+  // Hitung total = masuk - keluar - mati
+  if (headerMap.total >= 0) {
+    var masuk = Number(data.masuk) || 0;
+    var keluar = Number(data.keluar) || 0;
+    var mati = Number(data.mati) || 0;
+    rowData[headerMap.total] = masuk - keluar - mati;
+  }
+  // Generate kode verifikasi 10 karakter
+  var verifyCol = headerMap.kodeverifikasi;
+  if (verifyCol === -1) {
+    totalCols++;
+    sheet.getRange(1, totalCols).setValue("Kode Verifikasi");
+    verifyCol = totalCols - 1;
+  }
+  rowData[verifyCol] = generateVerificationCode(10);
+  // Kolom Nomor Surat
+  var nomorSuratCol = headerMap.nomorsurat;
+  if (nomorSuratCol === -1) {
+    totalCols++;
+    sheet.getRange(1, totalCols).setValue("Nomor Surat");
+    nomorSuratCol = totalCols - 1;
+  }
+  var nomorSurat = generateNomorSurat(newRow, data.tanggal || new Date().toISOString().split("T")[0]);
+  rowData[nomorSuratCol] = nomorSurat;
+  // Kolom link PDF
+  var linkPdfCol = headerMap.linkpdf;
+  if (linkPdfCol === -1) {
+    totalCols++;
+    sheet.getRange(1, totalCols).setValue("Link PDF");
+    linkPdfCol = totalCols - 1;
+  }
+  // Tulis baris baru ke sheet
+  sheet.getRange(newRow, 1, 1, totalCols).setValues([rowData]);
+  // Generate PDF Surat Jalan dan simpan ke Drive
+  var pdfUrl = "";
+  try {
+    var tanggalStr = data.tanggal || new Date().toISOString().split("T")[0];
+    var bibitStr = data.bibit || "-";
+    var keluarNum = Number(data.keluar) || 0;
+    var sumberStr = data.sumber || "-";
+    var tujuanStr = data.tujuan || "-";
+    var kodeVer = rowData[verifyCol];
+    var dibuatOlehStr = data.dibuatOleh || "-";
+    var driverStr = data.driver || "-";
+    pdfUrl = generateSuratJalanPdf(tanggalStr, bibitStr, keluarNum, sumberStr, tujuanStr, kodeVer, nomorSurat, dibuatOlehStr, driverStr);
+    if (pdfUrl) {
+      sheet.getRange(newRow, linkPdfCol + 1).setValue(pdfUrl);
+      savePdfLinkToSheet(nomorSurat, tanggalStr, bibitStr, tujuanStr, pdfUrl, dibuatOlehStr, driverStr);
+    }
+  } catch (pdfErr) {
+    Logger.log("inputDataBibit: PDF generation gagal: " + pdfErr.message);
+  }
+  return { success: true, nomorSurat: nomorSurat, linkPdf: pdfUrl };
+}
 // === Kirim Otomatis ke WhatsApp via Fonnte ===
 // Semua jenis bibit tetap dikirim, tapi analisis tim hanya fokus pada "SENGON POTTING"
 const TOKEN_FONNTE = "VDFAKtD3JhwNymAf6Sgz";
@@ -41,15 +155,8 @@ function getDropdownOptions() {
 
 // === Handler CORS Preflight OPTIONS ===
 function doOptions(e) {
-  var output = ContentService.createTextOutput();
-  output.setMimeType(ContentService.MimeType.JSON);
-  output.setHeaders({
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Max-Age": "3600"
-  });
-  return output;
+  return ContentService.createTextOutput()
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 // === Web API — doPost (Terima data dari form) ===
@@ -57,10 +164,8 @@ function doPost(e) {
   Logger.log("POST DATA: " + (e && e.postData && e.postData.contents ? e.postData.contents : "(no data)"));
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
   if (!sheet) {
-    var output = ContentService.createTextOutput(JSON.stringify({ success: false, error: "Sheet not found" }));
-    output.setMimeType(ContentService.MimeType.JSON);
-    output.setHeaders({ "Access-Control-Allow-Origin": "*" });
-    return output;
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Sheet not found" }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 
   try {
@@ -118,10 +223,8 @@ function doPost(e) {
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Nomor Surat tidak ditemukan" }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-    var output = ContentService.createTextOutput(JSON.stringify({ success: true, message: "Approval berhasil disimpan" }));
-    output.setMimeType(ContentService.MimeType.JSON);
-    output.setHeaders({ "Access-Control-Allow-Origin": "*" });
-    return output;
+    return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Approval berhasil disimpan" }))
+      .setMimeType(ContentService.MimeType.JSON);
     }
 
     // === Handler Input Data Bibit (default) ===
@@ -290,26 +393,22 @@ function savePdfLinkToSheet(nomorSurat, tanggal, bibit, tujuan, linkPdf, dibuatO
     }
 
     // Return response dengan nomorSurat dan linkPdf
-    var output = ContentService.createTextOutput(JSON.stringify({
+    return ContentService.createTextOutput(JSON.stringify({
       success: true,
       row: newRow,
       nomorSurat: nomorSurat,
       linkPdf: pdfUrl,
       message: "Data berhasil disimpan"
-    }));
-    output.setMimeType(ContentService.MimeType.JSON);
-    output.setHeaders({ "Access-Control-Allow-Origin": "*" });
-    return output;
+    }))
+      .setMimeType(ContentService.MimeType.JSON);
 
   } catch (err) {
     Logger.log("doPost error: " + err.message);
-    var output = ContentService.createTextOutput(JSON.stringify({
+    return ContentService.createTextOutput(JSON.stringify({
       success: false,
       error: err.message
-    }));
-    output.setMimeType(ContentService.MimeType.JSON);
-    output.setHeaders({ "Access-Control-Allow-Origin": "*" });
-    return output;
+    }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
@@ -317,10 +416,8 @@ function savePdfLinkToSheet(nomorSurat, tanggal, bibit, tujuan, linkPdf, dibuatO
 function doGet(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
   if (!sheet) {
-    var output = ContentService.createTextOutput(JSON.stringify({ error: "Sheet not found" }));
-    output.setMimeType(ContentService.MimeType.JSON);
-    output.setHeaders({ "Access-Control-Allow-Origin": "*" });
-    return output;
+    return ContentService.createTextOutput(JSON.stringify({ error: "Sheet not found" }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 
   var headerMap = buildHeaderMap(sheet);
@@ -378,10 +475,8 @@ function doGet(e) {
   }
 
   var output = JSON.stringify({ data: rows, count: rows.length, timestamp: new Date().toISOString() });
-  var response = ContentService.createTextOutput(output);
-  response.setMimeType(ContentService.MimeType.JSON);
-  response.setHeaders({ "Access-Control-Allow-Origin": "*" });
-  return response;
+  return ContentService.createTextOutput(output)
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 // === Verify handler — cari kode verifikasi di sheet ===
@@ -1060,8 +1155,8 @@ function kirimPesanFonnte(sheet, row, headerMap, allData, vals) {
         muteHttpExceptions: true
       };
       var res = UrlFetchApp.fetch("https://api.fonnte.com/send", options);
-      // Endpoint Google Apps Script terbaru yang aktif:
-      var endpoint = "https://script.google.com/macros/s/AKfycbzPzhWrCiCreXtj3m2suWTAhqj9DDC6rLNm3WhACgfwq-Z5IQ_ev7_GN0HwO8rTNNrm/exec";
+       // Endpoint Google Apps Script terbaru yang aktif:
+       var endpoint = "https://script.google.com/macros/s/AKfycbyPV84uIj-AIIExmW8DJSz4m5oW1Md7DBFwfGniim-CCCZdFOo3chx4ZXacVJz2iKD1/exec";
       var resCode = res.getResponseCode();
       var resBody = res.getContentText();
       Logger.log("Fonnte response [" + targets[t].trim() + "]: " + resCode + " - " + resBody);
