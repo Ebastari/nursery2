@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import * as pdfjs from 'pdfjs-dist/build/pdf';
+import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 import { QRCodeOverlay } from './QRCodeOverlay';
 

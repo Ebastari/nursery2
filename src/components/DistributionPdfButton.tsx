@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Download, FileText, Loader2 } from 'lucide-react';
+import { Download, FileText, Loader2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { downloadDistributionPdf, type DistributionPdfData } from '../utils/generateDistributionPdf';
 

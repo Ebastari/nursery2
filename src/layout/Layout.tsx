@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutGrid, ClipboardPen, Camera, Package, Bell, Shield } from 'lucide-react';
+import { LayoutGrid, ClipboardPen, Camera, Package, Bell } from 'lucide-react';
 import { NotificationBell } from '../components/NotificationBell';
 import { useStore } from '../store/useStore';
 

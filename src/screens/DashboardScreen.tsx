@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { RefreshCw, Shield, MessageCircle } from 'lucide-react';
+import { RefreshCw, MessageCircle } from 'lucide-react';
 import { Card } from '../components/Card';
 import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
 // ...hapus ApprovalModal...
@@ -134,9 +134,10 @@ const DashboardScreen: React.FC = () => {
             <button onClick={handleRefresh} className="w-10 h-10 bg-emerald-500 text-white rounded-xl flex items-center justify-center">
               <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
             </button>
-            <button onClick={() => setShowAdminModal(true)} className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center">
+            {/* Tombol admin Shield dinonaktifkan sementara untuk mencegah error build */}
+            {/* <button onClick={() => setShowAdminModal(true)} className="w-10 h-10 bg-amber-500 text-white rounded-xl flex items-center justify-center">
               <Shield className="w-5 h-5" />
-            </button>
+            </button> */}
           </div>
         </div>
 
