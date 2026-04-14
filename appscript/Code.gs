@@ -39,13 +39,27 @@ function getDropdownOptions() {
   return { dibuatOleh: dibuatOleh, driver: driver };
 }
 
+// === Handler CORS Preflight OPTIONS ===
+function doOptions(e) {
+  var output = ContentService.createTextOutput();
+  output.setMimeType(ContentService.MimeType.JSON);
+  output.setHeaders({
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "3600"
+  });
+  return output;
+}
+
 // === Web API — doPost (Terima data dari form) ===
 function doPost(e) {
   Logger.log("POST DATA: " + (e && e.postData && e.postData.contents ? e.postData.contents : "(no data)"));
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
   if (!sheet) {
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Sheet not found" }))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeaders({ "Access-Control-Allow-Origin": "*" });
   }
 
   try {
@@ -103,8 +117,9 @@ function doPost(e) {
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Nomor Surat tidak ditemukan" }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-      return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Approval berhasil disimpan" }))
-        .setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Approval berhasil disimpan" }))
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeaders({ "Access-Control-Allow-Origin": "*" });
     }
 
     // === Handler Input Data Bibit (default) ===
@@ -280,7 +295,8 @@ function savePdfLinkToSheet(nomorSurat, tanggal, bibit, tujuan, linkPdf, dibuatO
       linkPdf: pdfUrl,
       message: "Data berhasil disimpan"
     }))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeaders({ "Access-Control-Allow-Origin": "*" });
 
   } catch (err) {
     Logger.log("doPost error: " + err.message);
@@ -288,7 +304,8 @@ function savePdfLinkToSheet(nomorSurat, tanggal, bibit, tujuan, linkPdf, dibuatO
       success: false,
       error: err.message
     }))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeaders({ "Access-Control-Allow-Origin": "*" });
   }
 }
 
@@ -297,7 +314,8 @@ function doGet(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEET_NAME);
   if (!sheet) {
     return ContentService.createTextOutput(JSON.stringify({ error: "Sheet not found" }))
-      .setMimeType(ContentService.MimeType.JSON);
+      .setMimeType(ContentService.MimeType.JSON)
+      .setHeaders({ "Access-Control-Allow-Origin": "*" });
   }
 
   var headerMap = buildHeaderMap(sheet);
@@ -356,7 +374,8 @@ function doGet(e) {
 
   var output = JSON.stringify({ data: rows, count: rows.length, timestamp: new Date().toISOString() });
   return ContentService.createTextOutput(output)
-    .setMimeType(ContentService.MimeType.JSON);
+    .setMimeType(ContentService.MimeType.JSON)
+    .setHeaders({ "Access-Control-Allow-Origin": "*" });
 }
 
 // === Verify handler — cari kode verifikasi di sheet ===

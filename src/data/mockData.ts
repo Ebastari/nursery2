@@ -171,12 +171,12 @@ async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbzT0wGao7cyMeUyu6k-oi8mc4JtaDlilSV2va9fO_yTK3MWZRYAEuCMZ8dzxFyEyyls/exec';
     // Try localhost proxy first, fallback to direct GAS
     let apiUrl = 'http://localhost:3001/api/submit';
-    try {
-      await fetch(apiUrl, { method: 'HEAD' });
-    } catch {
-      // Proxy unavailable, use direct GAS
-      apiUrl = GAS_URL;
-    }
+    // Google Apps Script CORS workaround: gunakan text/plain untuk hindari preflight
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(body)
+    });
 
     const res = await fetch(apiUrl, {
       method: 'POST',
