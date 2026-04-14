@@ -168,20 +168,14 @@ async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord
     };
 
     // Direct to Google Apps Script (bypass proxy issues)
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzT0wGao7cyMeUyu6k-oi8mc4JtaDlilSV2va9fO_yTK3MWZRYAEuCMZ8dzxFyEyyls/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyPV84uIj-AIIExmW8DJSz4m5oW1Md7DBFwfGniim-CCCZdFOo3chx4ZXacVJz2iKD1/exec';
     // Try localhost proxy first, fallback to direct GAS
     let apiUrl = 'http://localhost:3001/api/submit';
     // Google Apps Script CORS workaround: gunakan text/plain untuk hindari preflight
-    const response = await fetch(apiUrl, {
+    const res = await fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(body)
-    });
-
-    const res = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(gasPayload),
+      body: JSON.stringify(gasPayload)
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
