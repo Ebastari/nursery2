@@ -168,7 +168,7 @@ async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord
     };
 
     // Direct to Google Apps Script (bypass proxy issues)
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzPzhWrCiCreXtj3m2suWTAhqj9DDC6rLNm3WhACgfwq-Z5IQ_ev7_GN0HwO8rTNNrm/exec';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbzT0wGao7cyMeUyu6k-oi8mc4JtaDlilSV2va9fO_yTK3MWZRYAEuCMZ8dzxFyEyyls/exec';
     // Try localhost proxy first, fallback to direct GAS
     let apiUrl = 'http://localhost:3001/api/submit';
     try {
