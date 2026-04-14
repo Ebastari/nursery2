@@ -9,7 +9,7 @@ import { AlertScreen } from './screens/AlertScreen';
 import { PerformanceScreen } from './screens/PerformanceScreen';
 import { SuratJalanScreen } from './screens/SuratJalanScreen';
 import { VerifyScreen } from './screens/VerifyScreen';
-import { ApprovalScreen } from './screens/ApprovalScreen';
+// ...hapus import ApprovalScreen...
 
 function App() {
   return (
@@ -25,7 +25,7 @@ function App() {
           <Route path="/alerts" element={<AlertScreen />} />
           <Route path="/surat-jalan" element={<SuratJalanScreen />} />
           <Route path="/verify" element={<VerifyScreen />} />
-          <Route path="/approval" element={<ApprovalScreen />} />
+          {/* ...hapus route approval... */}
         </Route>
       </Routes>
     </BrowserRouter>

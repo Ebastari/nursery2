@@ -80,6 +80,7 @@ interface AppState {
   clearAdminMode: () => void;
   approveSuratJalan: (id: string, approvedBy: string) => void;
   rejectSuratJalan: (id: string, reason: string) => void;
+  setApprovalError: (error: string | null) => void;
 }
 
 export const useStore = create<AppState>((set, get) => ({

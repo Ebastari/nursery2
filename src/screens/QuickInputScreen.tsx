@@ -12,11 +12,12 @@ import type { ApiRow } from '../data/api';
 import { useOnlineStatus } from '../data/useOnlineStatus';
 
 export function QuickInputScreen() {
-    // State untuk mode input: 'chatbot' | 'manual' | null
-    const [inputMode, setInputMode] = useState<null | 'chatbot' | 'manual'>(null);
+  // State untuk mode input: 'chatbot' | 'manual' | null
+  const [inputMode, setInputMode] = useState<null | 'chatbot' | 'manual'>(null);
   const navigate = useNavigate();
   const { plants, submitting, submitActivity, fetchPlants, inputForm: form, setInputForm, resetInputForm } = useStore();
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const isOnline = useOnlineStatus();
   const [sumberOptions, setSumberOptions] = useState<{ value: string; label: string }[]>([]);
   const [tujuanOptions, setTujuanOptions] = useState<{ value: string; label: string }[]>([]);
@@ -121,23 +122,28 @@ export function QuickInputScreen() {
   const stokWarning = currentStok !== null && totalPengurangan > currentStok;
 
   const handleSubmit = async () => {
+    setSubmitError(null);
     if (!form.bibit) return;
-    await submitActivity({
-      tanggal: form.tanggal,
-      bibit: form.bibit,
-      masuk: Number(form.masuk) || 0,
-      keluar: Number(form.keluar) || 0,
-      mati: Number(form.mati) || 0,
-      sumber: form.sumber,
-      tujuan: form.tujuan,
-      dibuatOleh: form.dibuatOleh,
-      driver: form.driver,
-    });
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      resetInputForm();
-    }, 2000);
+    try {
+      await submitActivity({
+        tanggal: form.tanggal,
+        bibit: form.bibit,
+        masuk: Number(form.masuk) || 0,
+        keluar: Number(form.keluar) || 0,
+        mati: Number(form.mati) || 0,
+        sumber: form.sumber,
+        tujuan: form.tujuan,
+        dibuatOleh: form.dibuatOleh,
+        driver: form.driver,
+      });
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        resetInputForm();
+      }, 2000);
+    } catch (err: any) {
+      setSubmitError(err?.message || 'Gagal mengirim data. Silakan coba lagi.');
+    }
   };
 
   if (submitted) {
@@ -203,7 +209,18 @@ export function QuickInputScreen() {
             </div>
           )}
 
-          <Card className={`space-y-4 ${!isOnline ? 'opacity-50 pointer-events-none' : ''}`}>
+          {/* Error submit */}
+          {submitError && (
+            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 mb-2">
+              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
+              <div>
+                <p className="text-[13px] font-semibold text-red-700">Gagal menyimpan data</p>
+                <p className="text-[11px] text-red-500 mt-0.5">{submitError}</p>
+              </div>
+            </div>
+          )}
+
+          <Card className={`space-y-4 ${!isOnline ? 'opacity-50 pointer-events-none' : ''}`}> 
             <Input
               label="Tanggal"
               type="date"

@@ -7,7 +7,7 @@ const app = express();
 const PORT = 3001;
 
 // URL Apps Script yang benar dari api.ts
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxsNEYdTVX5mvIJTcMz1WfzIFjonksMxYaRYTR7ZIQy4Gv7S3ajjnOd0KQmHiTjJ0_z/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzFI9sUizbC-iHcZZ8W8ABHyHc-tvO3hiwS3Ycz4B4lBm866VfEq8TGquRdWex6UzCT/exec';
 
 app.use(express.json());
 

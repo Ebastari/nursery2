@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
-import { RefreshCw, Shield, MessageCircle, TrendingUp } from 'lucide-react';
+import { RefreshCw, Shield, MessageCircle } from 'lucide-react';
 import { Card } from '../components/Card';
 import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
-import { ApprovalModal } from '../components/ApprovalModal';
+// ...hapus ApprovalModal...
 import { useStore } from '../store/useStore';
 import { useOnlineStatus } from '../data/useOnlineStatus';
 import { loadPerformanceData, getPerformanceData } from '../data/performanceData';
@@ -12,24 +12,21 @@ import type { ApiRow } from '../data/api';
 import { CalendarHeatmap } from '../components/CalendarHeatmap';
 
 const DashboardScreen: React.FC = () => {
-  const [perfData, setPerfData] = useState<any[]>([]);
-  const { plants, refreshAll, isAdmin } = useStore();
-
+  // ...existing code...
+  const { refreshAll } = useStore();
   const [chatOpen, setChatOpen] = useState(false);
-  const [showAdminModal, setShowAdminModal] = useState(false);
+  // ...hapus state ApprovalModal...
   const [refreshing, setRefreshing] = useState(false);
   const isOnline = useOnlineStatus();
-
   const [bibitStats, setBibitStats] = useState<{nama: string, jumlah: number, percent: number}[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
   const [errorStats, setErrorStats] = useState<string | null>(null);
-
-const selectedTim = "Basri";
+  const selectedTim = "Basri";
 
   useEffect(() => {
     loadPerformanceData().then(() => {
-      const data = getPerformanceData('Semua');
-      setPerfData(data);
+      getPerformanceData('Semua');
+      // setPerfData(data); // Hapus, variabel tidak ada
     });
   }, []);
 
@@ -198,7 +195,7 @@ const selectedTim = "Basri";
           </Card>
 
           <Card className="p-3 text-center transition-all hover:scale-[1.02] hover:shadow-md">
-            <div className="text-xs text-gray-500">Jenis Top 5</div>
+            <div className="text-xs text-gray-500">Jenis</div>
             <div className="text-lg font-bold">{bibitStats.length}</div>
           </Card>
 
@@ -284,11 +281,7 @@ const selectedTim = "Basri";
         {chatOpen && <ChatbotPanel onClose={() => setChatOpen(false)} mode="info" />}
       </AnimatePresence>
 
-      <ApprovalModal 
-        isOpen={showAdminModal} 
-        onClose={() => setShowAdminModal(false)} 
-        onSuccess={() => setShowAdminModal(false)} 
-      />
+      {/* ...hapus ApprovalModal... */}
     </>
   );
 };

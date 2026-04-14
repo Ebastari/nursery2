@@ -1,21 +1,26 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Configure PDF.js worker  
-pdfjsLib.GlobalWorkerOptions.workerSrc = `${import.meta.env.BASE_URL || '/'}pdf.worker.min.js`;
+import * as pdfjs from 'pdfjs-dist/build/pdf';
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+import { QRCodeOverlay } from './QRCodeOverlay';
 
 interface DocumentPreviewProps {
   url: string;
   type?: 'pdf' | 'image';
   height?: number;
   ttdSopir?: boolean;
+  showQrCode?: boolean;
+  qrValue?: string;
+  showCentang?: boolean;
 }
 
 const DocumentPreview: React.FC<DocumentPreviewProps> = ({ 
   url, 
   type = 'pdf', 
   height = 500, 
-  ttdSopir 
+  ttdSopir,
+  showQrCode = false,
+  qrValue = '',
+  showCentang = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -36,7 +41,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
     setPageNum(1);
 
     try {
-      const loadingTask = pdfjsLib.getDocument({
+      const loadingTask = pdfjs.getDocument({
         url,
         httpHeaders: { 'Access-Control-Allow-Origin': '*' },
         withCredentials: false,
@@ -152,6 +157,23 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
             <path d="M5 13l4 4L19 7"/>
           </svg>
           <span className="text-xs font-semibold text-emerald-700">TTD Sopir ✓</span>
+        </div>
+      )}
+
+      {/* QR Code Overlay */}
+      {showQrCode && qrValue && (
+        <div className="absolute bottom-4 right-4 z-30">
+          <QRCodeOverlay value={qrValue} size={72} />
+        </div>
+      )}
+
+      {/* Centang Overlay (visual, kanan bawah) */}
+      {showCentang && (
+        <div className="absolute bottom-4 left-4 z-30 flex items-center gap-2 bg-white/90 px-3 py-1.5 rounded-lg border border-emerald-200 shadow">
+          <svg className="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-xs font-semibold text-emerald-700">Disetujui</span>
         </div>
       )}
 

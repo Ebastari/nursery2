@@ -39,12 +39,11 @@ export function Layout() {
         </div>
         <h1 className="text-[15px] font-semibold tracking-wide truncate flex-1">{title}</h1>
         <NotificationBell />
-        {isAdmin && (
-          <NavLink to="/approval" className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 text-xs font-semibold">
-            <Shield className="w-4 h-4" />
-            Admin
-          </NavLink>
-        )}
+           {isAdmin && (
+             <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/20 text-xs font-semibold">
+               Admin
+             </span>
+           )}
       </header>
 
       {/* Main content */}
