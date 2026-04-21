@@ -39,7 +39,7 @@ function formatDateShort(d: Date): string {
   return `${d.getDate()} ${BULAN[d.getMonth()]}`;
 }
 
-function buildWeeks(data: DailyOutput[], _bibitKeys: string[]): WeekBucket[] {
+function buildWeeks(data: DailyOutput[]): WeekBucket[] {
   // Map tanggal -> DailyOutput
   const dataMap = new Map<string, DailyOutput>();
   for (const d of data) {
@@ -87,7 +87,7 @@ function buildWeeks(data: DailyOutput[], _bibitKeys: string[]): WeekBucket[] {
 }
 
 export function WeeklyBarCard({ data, bibitKeys, bibitLabels, bibitColors }: WeeklyBarCardProps) {
-  const weeks = useMemo(() => buildWeeks(data, bibitKeys), [data, bibitKeys]);
+  const weeks = useMemo(() => buildWeeks(data), [data]);
 
   // Global max across all weeks for consistent Y scale
   const globalMax = useMemo(() => {

@@ -151,8 +151,6 @@ export const api = {
     return deriveAlerts(plants, rows);
   },
 async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord & { linkPdf?: string }> {
-    const { fetchApiData: _fetch, clearCache: _clear } = await import('./api');
-
     // Prepare GAS payload - map fields + ensure tanggal
     const today = new Date().toISOString().split('T')[0];
     const gasPayload = {
@@ -168,9 +166,7 @@ async submitActivity(record: Omit<ActivityRecord, 'id'>): Promise<ActivityRecord
     };
 
     // Direct to Google Apps Script (bypass proxy issues)
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbyPV84uIj-AIIExmW8DJSz4m5oW1Md7DBFwfGniim-CCCZdFOo3chx4ZXacVJz2iKD1/exec';
-    // Try localhost proxy first, fallback to direct GAS
-    let apiUrl = 'http://localhost:3001/api/submit';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxO4WFEjJVp5rzDOq0zRX3hycgB9zaZ_JB6vfM2gqxuwf7Qq46MjrojF_j1O8px4OV0/exec';
     // Google Apps Script CORS workaround: gunakan text/plain untuk hindari preflight
     const res = await fetch(GAS_URL, {
       method: 'POST',

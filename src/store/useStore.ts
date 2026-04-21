@@ -262,8 +262,8 @@ export const useStore = create<AppState>((set, get) => ({
   approveSuratJalan: async (nomorSurat: string, approvedBy: string) => {
     const { refreshAll } = get();
     // Optimistic update
-    set((state: any) => {
-      const exists = state.approvals.find((a: any) => a.nomorSurat === nomorSurat);
+    set((state: AppState) => {
+      const exists = state.approvals.find((a: ApprovalRecord) => a.nomorSurat === nomorSurat);
       const newApproval: ApprovalRecord = {
         id: `approval-${Date.now()}`,
         nomorSurat,
@@ -278,7 +278,7 @@ export const useStore = create<AppState>((set, get) => ({
       };
       if (exists) {
         return {
-          approvals: state.approvals.map((a: any) =>
+          approvals: state.approvals.map((a: ApprovalRecord) =>
             a.nomorSurat === nomorSurat
               ? { ...a, status: 'approved' as const, approvedBy, approvedAt: new Date().toISOString() }
               : a

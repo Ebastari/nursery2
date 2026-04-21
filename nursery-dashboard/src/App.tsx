@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   fetchData,
-  filterRows,
   getSummary,
   getDailyData,
   getRekapPerBibit,
@@ -26,17 +25,6 @@ import {
 } from "lucide-react";
 
 export default function App() {
-    // Top 6 distribusi bibit (berdasarkan keluar)
-    const topBibit = useMemo(() => {
-      const total = rekap.reduce((a, b) => a + b.keluar, 0) || 1;
-      return rekap
-        .map((r) => ({
-          ...r,
-          percent: (r.keluar / total) * 100,
-        }))
-        .sort((a, b) => b.keluar - a.keluar)
-        .slice(0, 6);
-    }, [rekap]);
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -44,16 +32,15 @@ export default function App() {
   const [bulan, setBulan] = useState("Semua");
   const [bibit, setBibit] = useState("Semua");
 
-  const load = () => {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true);
     setError("");
     fetchData()
       .then(setRows)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  };
-
-  useEffect(load, []);
+  }, []);
 
   const tujuanOpts = useMemo(() => uniqueTujuan(rows), [rows]);
   const bulanOpts = useMemo(() => uniqueBulan(rows), [rows]);
@@ -70,6 +57,18 @@ export default function App() {
   const bibitTypes = useMemo(() => uniqueBibit(filteredBasri), [filteredBasri]);
   const daily = useMemo(() => getDailyData(filteredBasri, bibitTypes), [filteredBasri, bibitTypes]);
   const rekap = useMemo(() => getRekapPerBibit(filteredBasri), [filteredBasri]);
+
+  // Top 6 distribusi bibit (berdasarkan keluar)
+  const topBibit = useMemo(() => {
+    const total = rekap.reduce((a, b) => a + b.keluar, 0) || 1;
+    return rekap
+      .map((r) => ({
+        ...r,
+        percent: (r.keluar / total) * 100,
+      }))
+      .sort((a, b) => b.keluar - a.keluar)
+      .slice(0, 6);
+  }, [rekap]);
 
   return (
     <div className="min-h-screen bg-gray-50">

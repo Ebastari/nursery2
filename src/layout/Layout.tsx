@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { LayoutGrid, ClipboardPen, Camera, Package, Bell } from 'lucide-react';
+import { LayoutGrid, Camera, Package, Bell, ExternalLink } from 'lucide-react';
 import { NotificationBell } from '../components/NotificationBell';
 import { useStore } from '../store/useStore';
 
@@ -7,7 +7,8 @@ const COMPANY_LOGO = 'https://i.ibb.co.com/xSTT9wJK/download.png';
 
 const navItems = [
   { to: '/', icon: LayoutGrid, label: 'Home' },
-  { to: '/input', icon: ClipboardPen, label: 'Input' },
+  // Menu Input Bibit (AppScript)
+  { to: '/input', icon: ExternalLink, label: 'Input' },
   { to: '/verify', icon: Camera, label: 'Scan', center: true },
   { to: '/stock', icon: Package, label: 'Stock' },
   { to: '/alerts', icon: Bell, label: 'Alerts' },
@@ -15,7 +16,7 @@ const navItems = [
 
 const pageTitles: Record<string, string> = {
   '/': 'Dashboard',
-  '/input': 'Input Cepat',
+
   '/stock': 'Stok Bibit',
   '/performance': 'Kinerja Nursery',
   '/distribution': 'Distribusi',

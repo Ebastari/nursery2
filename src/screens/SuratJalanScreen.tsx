@@ -322,6 +322,7 @@ export function SuratJalanScreen() {
       // === DRAFT WATERMARK ===
       if (draft) {
         doc.saveGraphicsState();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const gState = (doc as any).GState({ opacity: 0.08 });
         doc.setGState(gState);
         doc.setFontSize(120);

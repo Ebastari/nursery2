@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as pdfjs from 'pdfjs-dist/build/pdf.mjs';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 import { QRCodeOverlay } from './QRCodeOverlay';
 
@@ -30,33 +31,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [scale, setScale] = useState(1.2);
-  const pdfDocRef = useRef<any>(null);
-
-  const loadDocument = useCallback(async () => {
-    if (!url || type !== 'pdf') return;
-    
-    setLoading(true);
-    setError(null);
-    setNumPages(0);
-    setPageNum(1);
-
-    try {
-      const loadingTask = pdfjs.getDocument({
-        url,
-        httpHeaders: { 'Access-Control-Allow-Origin': '*' },
-        withCredentials: false,
-      });
-
-      pdfDocRef.current = await loadingTask.promise;
-      setNumPages(pdfDocRef.current.numPages);
-      await renderPage();
-    } catch (err: any) {
-      console.error('PDF load error:', err);
-      setError(err.message || 'Gagal memuat PDF');
-    } finally {
-      setLoading(false);
-    }
-  }, [url, type]);
+  const pdfDocRef = useRef<PDFDocumentProxy | null>(null);
 
   const renderPage = useCallback(async () => {
     if (!pdfDocRef.current || !canvasRef.current || pageNum > numPages || pageNum < 1) {
@@ -69,7 +44,7 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
       const viewport = page.getViewport({ scale });
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
-      
+
       if (!context) return;
 
       canvas.height = viewport.height;
@@ -92,12 +67,37 @@ const DocumentPreview: React.FC<DocumentPreviewProps> = ({
 
       await page.render(renderContext).promise;
       setLoading(false);
-    } catch (err: any) {
-      setError(err.message || 'Gagal render halaman');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Gagal render halaman');
       setLoading(false);
     }
   }, [pageNum, numPages, scale]);
 
+  const loadDocument = useCallback(async () => {
+    if (!url || type !== 'pdf') return;
+
+    setLoading(true);
+    setError(null);
+    setNumPages(0);
+    setPageNum(1);
+
+    try {
+      const loadingTask = pdfjs.getDocument({
+        url,
+        httpHeaders: { 'Access-Control-Allow-Origin': '*' },
+        withCredentials: false,
+      });
+
+      pdfDocRef.current = await loadingTask.promise;
+      setNumPages(pdfDocRef.current.numPages);
+      await renderPage();
+    } catch (err: unknown) {
+      console.error('PDF load error:', err);
+      setError(err instanceof Error ? err.message : 'Gagal memuat PDF');
+    } finally {
+      setLoading(false);
+    }
+  }, [url, type, renderPage]);
   useEffect(() => {
     loadDocument();
   }, [loadDocument]);

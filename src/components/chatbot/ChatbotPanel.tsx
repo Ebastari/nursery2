@@ -208,14 +208,14 @@ export function ChatbotPanel({ onClose, mode: initialMode = 'input' }: { onClose
             msg += `• ${b}: ${mati.toLocaleString('id-ID')} bibit\n`;
           });
           addMsg('bot', msg);
-        } catch (err) {
+        } catch {
           addMsg('bot', 'Gagal mengambil data kematian bibit.');
         }
       } else if (q.includes('distribusi') || q.includes('tujuan') || q.includes('tim')) {
-        let timMatch = q.match(/tim\s+([a-zA-Z0-9]+)/);
+        const timMatch = q.match(/tim\s+([a-zA-Z0-9]+)/);
         let timName = timMatch ? timMatch[1].toUpperCase() : '';
         if (!timName) {
-          let keMatch = q.match(/ke\s+([a-zA-Z0-9]+)/);
+          const keMatch = q.match(/ke\s+([a-zA-Z0-9]+)/);
           if (keMatch) timName = keMatch[1].toUpperCase();
         }
         if (timName) {
@@ -240,7 +240,7 @@ export function ChatbotPanel({ onClose, mode: initialMode = 'input' }: { onClose
             });
             msg += `\nTotal distribusi: ${rowsTim.reduce((a, b) => a + (b.keluar || 0), 0).toLocaleString('id-ID')} bibit`;
             addMsg('bot', msg);
-          } catch (err) {
+          } catch {
             addMsg('bot', 'Gagal mengambil data distribusi tim.');
           }
         } else {
@@ -324,10 +324,10 @@ export function ChatbotPanel({ onClose, mode: initialMode = 'input' }: { onClose
     setFormData((prev) => ({ ...prev, ...result.updatedForm }));
     addMsg('bot', result.message);
     setStep(result.nextStep);
-  }, [step, formData, stokMap, submitting, loading, pdfUrl, navigate, onClose, addMsg, agent, options.bibit]);
+  }, [step, formData, stokMap, submitting, loading, pdfUrl, navigate, onClose, addMsg, agent, options.bibit, handleSubmit, resetAll]);
 
   // ── Submit data ──
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     setSubmitting(true);
     setStep('submitting');
     addMsg('bot', 'Menyimpan dan mengirim data...');
@@ -370,16 +370,16 @@ export function ChatbotPanel({ onClose, mode: initialMode = 'input' }: { onClose
 
       addMsg('bot', successMsg);
       setStep(successStep);
-    } catch (err: any) {
-      addMsg('bot', `Gagal menyimpan data: ${err.message || 'Terjadi kesalahan'}\n\nSilakan coba lagi.`);
+    } catch (err: unknown) {
+      addMsg('bot', `Gagal menyimpan data: ${err instanceof Error ? err.message : 'Terjadi kesalahan'}\n\nSilakan coba lagi.`);
       setStep('confirm');
     }
 
     setSubmitting(false);
-  };
+  }, [formData, setStep, setSubmitting, addMsg, setPdfUrl]);
 
   // ── Reset ──
-  const resetAll = () => {
+  const resetAll = useCallback(() => {
     setFormData({ ...emptyForm });
     setPdfUrl('');
     setMessages([]);
@@ -387,7 +387,7 @@ export function ChatbotPanel({ onClose, mode: initialMode = 'input' }: { onClose
     addMsg('bot', GREETING);
     setStep('action');
     setInputValue('');
-  };
+  }, [setFormData, setPdfUrl, setMessages, nextId, addMsg, setStep, setInputValue]);
 
   // ── Quick replies  ──
   // Quick reply untuk mode info (dashboard)

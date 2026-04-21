@@ -187,6 +187,7 @@ export function DistributionPdfPreview({ data }: DistributionPdfPreviewProps) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const defaultDistributionPdfData: DistributionPdfData = {
   nomorSurat: 'SJ-BIBIT/0001/I/2026',
   tanggal: '13 April 2026',

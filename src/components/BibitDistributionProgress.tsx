@@ -37,7 +37,7 @@ const BibitDistributionProgress: React.FC<Props> = ({ data }) => {
 
   const totalAll = Array.from(bibitMap.values()).reduce((a, b) => a + b, 0);
 
-  let bibitArr = Array.from(bibitMap.entries()).map(([bibit, total]) => ({
+  const bibitArr = Array.from(bibitMap.entries()).map(([bibit, total]) => ({
     bibit,
     total,
     percent: totalAll ? (total / totalAll) * 100 : 0,

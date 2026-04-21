@@ -61,6 +61,7 @@ export async function getRowsFromDB(): Promise<ApiRow[]> {
     req.onsuccess = () => {
       db.close();
       // Remove the 'no' key we added
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const rows = (req.result || []).map(({ no: _no, ...rest }: { no: number } & ApiRow) => rest as ApiRow);
       resolve(rows);
     };

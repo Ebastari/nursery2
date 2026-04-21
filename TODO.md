@@ -1,14 +1,14 @@
-# TODO: Fix Dashboard Calculations (Tim Basri - Show All Bibit)
+# TODO: Replace Input Aktivitas Bibit menu with AppSheet link
 
-**Status: In Progress** ✅
+## Plan approved ✅
+**Files to edit:** nursery2/src/screens/QuickInputScreen.tsx
 
-## Plan Breakdown
-- [x] **Step 1**: Create TODO.md (done)
-- [✅] **Step 2**: Edit src/screens/DashboardScreen.tsx - Remove `.slice(0, 5)` to show ALL bibit distribusi (instead of top 5)
-- [✅] **Step 3**: Test dashboard - Verified edit successful (total unchanged at 21,753, now shows ALL bibit)
-- [✅] **Step 4**: Run dev server (`npm run dev`), check UI
-- [ ] **Step 5**: attempt_completion
+**Steps:**
+- [✅] Step 1: Create backup of QuickInputScreen.tsx
+- [✅] Step 2: Edit QuickInputScreen.tsx - remove input mode selection and manual form logic  
+- [✅] Step 3: Add AppSheet navigation button
+- [✅] Step 4: Test navigation to IframeScreen 
+- [✅] Step 5: Update TODO.md (mark complete)
+- [✅] Step 6: attempt_completion
 
-**Status: Complete** 🎉
-
-**Next**: Finalize
+**Current progress:** Task completed ✅

@@ -1,413 +1,47 @@
-import { useState, useEffect, useMemo } from 'react';
-import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
 import { useNavigate } from 'react-router-dom';
-import { useStore } from '../store/useStore';
-import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { Input, Select } from '../components/Input';
-import { CheckCircle, Plus, AlertTriangle, FileText, WifiOff } from 'lucide-react';
-import { fetchApiData } from '../data/api';
-import { fetchDropdowns } from '../data/api';
-import type { ApiRow } from '../data/api';
-import { useOnlineStatus } from '../data/useOnlineStatus';
+import { ExternalLink, Smartphone } from 'lucide-react';
 
 export function QuickInputScreen() {
-  // State untuk mode input: 'chatbot' | 'manual' | null
-  const [inputMode, setInputMode] = useState<null | 'chatbot' | 'manual'>(null);
   const navigate = useNavigate();
-  const { plants, submitting, submitActivity, fetchPlants, inputForm: form, setInputForm, resetInputForm } = useStore();
-  const [submitted, setSubmitted] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const isOnline = useOnlineStatus();
-  const [sumberOptions, setSumberOptions] = useState<{ value: string; label: string }[]>([]);
-  const [tujuanOptions, setTujuanOptions] = useState<{ value: string; label: string }[]>([]);
-  const [dibuatOlehOptions, setDibuatOlehOptions] = useState<{ value: string; label: string }[]>([]);
-  const [driverOptions, setDriverOptions] = useState<{ value: string; label: string }[]>([]);
-  const [apiRows, setApiRows] = useState<ApiRow[]>([]);
 
-  useEffect(() => {
-    if (plants.length === 0) fetchPlants();
-  }, [plants.length, fetchPlants]);
-
-  useEffect(() => {
-    fetchApiData().then((rows) => {
-      setApiRows(rows);
-      const sumberSet = new Set<string>();
-      const tujuanSet = new Set<string>();
-      for (const r of rows) {
-        if (r.sumber) sumberSet.add(r.sumber);
-        if (r.tujuan) tujuanSet.add(r.tujuan);
-      }
-      setSumberOptions([...sumberSet].sort().map((s) => ({ value: s, label: s })));
-      setTujuanOptions([...tujuanSet].sort().map((s) => ({ value: s, label: s })));
-    });
-    fetchDropdowns().then((opts) => {
-      setDibuatOlehOptions(opts.dibuatOleh.map((s) => ({ value: s, label: s })));
-      setDriverOptions(opts.driver.map((s) => ({ value: s, label: s })));
-    });
-  }, []);
-
-  // Hitung stok per jenis bibit dari data API
-  const stokPerBibit = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of apiRows) {
-      const key = r.bibit.trim().toUpperCase();
-      if (!key) continue;
-      if (!map[key]) map[key] = 0;
-      map[key] += (r.masuk || 0) - (r.keluar || 0) - (r.mati || 0);
-    }
-    // Pastikan stok minimal 0
-    for (const k of Object.keys(map)) {
-      if (map[k] < 0) map[k] = 0;
-    }
-    return map;
-  }, [apiRows]);
-
-  // --- Bibit manual input ---
-  const [manualBibit, setManualBibit] = useState('');
-  const [manualDibuatOleh, setManualDibuatOleh] = useState('');
-  const [manualDriver, setManualDriver] = useState('');
-
-  // Ambil bibit manual dari localStorage
-  const getManualList = (key: string) => {
-    try {
-      return JSON.parse(localStorage.getItem(key) || '[]');
-    } catch {
-      return [];
-    }
+  const handleOpenAppSheet = () => {
+    window.open('https://www.appsheet.com/start/0c6e4948-4c31-419f-a1d7-d6d897d4d742?platform=desktop#appName=Nurseryapkbaru-863683625&vss=H4sIAAAAAAAAA6WPMU_DMBCF_8vNzuAmNNQjiKFC7QJiwQyOfZZOpHYVX4Aq8n_HbkHMFeN7p-_dewt8EH4-sbHvoF6XP_WIJ1CwaHg-HVGD0nAfA09x1CA07M3hYt7RQKwhQ34TvzBjArVcwap__BVADgOTJ5xqUMVKwA9UzhUpxhmALOAwsxlGPPesAKVteHDEu-iK5mlGATyZkIxlimHrCty21q03_aaRVsqmk75thhvpm1vXd6t-7Tqz6iDnku6jnRO6lzLn2hm1x9fRBHdp4s2YMH8D838wCqABAAA=&view=Bibit', '_blank');
   };
-  const saveManualList = (key: string, value: string) => {
-    const arr = getManualList(key);
-    if (!arr.includes(value)) {
-      arr.push(value);
-      localStorage.setItem(key, JSON.stringify(arr));
-    }
-  };
-
-  const manualBibitList = getManualList('manual_bibit');
-  const manualDibuatOlehList = getManualList('manual_dibuatOleh');
-  const manualDriverList = getManualList('manual_driver');
-
-  const plantOptions = useMemo(() => [
-    ...plants.map((p) => ({ value: p.name, label: p.name })),
-    ...manualBibitList.map((b: string) => ({ value: b, label: b })),
-    { value: '__manual__', label: 'Input Manual...' },
-  ], [plants, manualBibitList]);
-
-  const dibuatOlehOptionsFull = useMemo(() => [
-    ...dibuatOlehOptions,
-    ...manualDibuatOlehList.map((d: string) => ({ value: d, label: d })),
-    { value: '__manual__', label: 'Input Manual...' },
-  ], [dibuatOlehOptions, manualDibuatOlehList]);
-
-  const driverOptionsFull = useMemo(() => [
-    ...driverOptions,
-    ...manualDriverList.map((d: string) => ({ value: d, label: d })),
-    { value: '__manual__', label: 'Input Manual...' },
-  ], [driverOptions, manualDriverList]);
-
-  const handleChange = (field: string, value: string) => {
-    setInputForm({ [field]: value });
-    // Reset manual input jika ganti ke dropdown
-    if (field === 'bibit' && value !== '__manual__') setManualBibit('');
-    if (field === 'dibuatOleh' && value !== '__manual__') setManualDibuatOleh('');
-    if (field === 'driver' && value !== '__manual__') setManualDriver('');
-  };
-
-  // Stok saat ini untuk bibit yang dipilih
-  const currentStok = form.bibit ? (stokPerBibit[form.bibit.trim().toUpperCase()] ?? null) : null;
-  const keluarVal = Number(form.keluar) || 0;
-  const matiVal = Number(form.mati) || 0;
-  const totalPengurangan = keluarVal + matiVal;
-  const stokWarning = currentStok !== null && totalPengurangan > currentStok;
-
-  const handleSubmit = async () => {
-    setSubmitError(null);
-    if (!form.bibit) return;
-    try {
-      await submitActivity({
-        tanggal: form.tanggal,
-        bibit: form.bibit,
-        masuk: Number(form.masuk) || 0,
-        keluar: Number(form.keluar) || 0,
-        mati: Number(form.mati) || 0,
-        sumber: form.sumber,
-        tujuan: form.tujuan,
-        dibuatOleh: form.dibuatOleh,
-        driver: form.driver,
-      });
-      setSubmitted(true);
-      setTimeout(() => {
-        setSubmitted(false);
-        resetInputForm();
-      }, 2000);
-    } catch (err: any) {
-      setSubmitError(err?.message || 'Gagal mengirim data. Silakan coba lagi.');
-    }
-  };
-
-  if (submitted) {
-    return (
-      <div className="fade-in flex flex-col items-center justify-center py-20 gap-4">
-        <div className="w-20 h-20 rounded-full bg-emerald-50 flex items-center justify-center">
-          <CheckCircle className="w-10 h-10 text-emerald-600" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900">Berhasil Disimpan!</h2>
-        <p className="text-gray-500 text-sm">Data aktivitas telah dicatat</p>
-      </div>
-    );
-  }
-
-
-  // Import Fast Input Panel (ChatbotPanel)
-  // NOTE: Import di atas file: import { ChatbotPanel } from '../components/chatbot/ChatbotPanel';
-  // Render di sini, di atas form manual
-  // Hilangkan floating button di halaman ini
 
   return (
-    <div className="fade-in space-y-4 pb-24">
-      <div>
-        <h1 className="text-xl font-bold text-gray-900">Input Aktivitas Bibit</h1>
-        <p className="text-sm text-gray-500">Pilih metode input yang diinginkan</p>
-      </div>
-
-      {/* Pilihan mode input */}
-      <div className="flex gap-3 mb-4">
-        <Button
-          variant={inputMode === 'chatbot' ? 'primary' : 'secondary'}
-          onClick={() => setInputMode('chatbot')}
-          className="flex-1"
-        >
-          Input Cepat (Chatbot)
-        </Button>
-        <Button
-          variant={inputMode === 'manual' ? 'primary' : 'secondary'}
-          onClick={() => setInputMode('manual')}
-          className="flex-1"
-        >
-          Input Manual (Formulir)
-        </Button>
-      </div>
-
-      {/* Tampilkan panel sesuai pilihan */}
-      {inputMode === 'chatbot' && (
-        <div className="mb-6">
-            <ChatbotPanel onClose={() => setInputMode(null)} mode="input" />
+    <div className="fade-in flex flex-col items-center justify-center min-h-[70vh] space-y-8 pb-24">
+      <div className="text-center max-w-md mx-auto space-y-4">
+        <div className="w-20 h-20 mx-auto rounded-2xl bg-emerald-100 flex items-center justify-center">
+          <Smartphone className="w-10 h-10 text-emerald-600" />
         </div>
-      )}
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+            Input Aktivitas Bibit
+          </h1>
+          <p className="text-lg text-gray-600 mb-4">
+            Buka formulir AppSheet untuk input data
+          </p>
+          <p className="text-sm text-gray-500">
+            Formulir akan terbuka dalam aplikasi (tidak keluar browser)
+          </p>
+        </div>
+      </div>
 
-      {inputMode === 'manual' && (
-        <>
-          {/* Offline Warning */}
-          {!isOnline && (
-            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200">
-              <WifiOff className="w-5 h-5 text-red-500 shrink-0" />
-              <div>
-                <p className="text-[13px] font-semibold text-red-700">Tidak ada koneksi internet</p>
-                <p className="text-[11px] text-red-500 mt-0.5">Form hanya bisa dikirim saat online. Silakan sambungkan internet terlebih dahulu.</p>
-              </div>
-            </div>
-          )}
+      <Button 
+        size="lg" 
+        variant="primary"
+        onClick={handleOpenAppSheet}
+        className="w-full max-w-md shadow-2xl shadow-emerald-500/25 !px-8 !py-5"
+      >
+        <ExternalLink className="w-5 h-5 mr-2" />
+        Buka AppSheet Input
+      </Button>
 
-          {/* Error submit */}
-          {submitError && (
-            <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 mb-2">
-              <AlertTriangle className="w-5 h-5 text-red-500 shrink-0" />
-              <div>
-                <p className="text-[13px] font-semibold text-red-700">Gagal menyimpan data</p>
-                <p className="text-[11px] text-red-500 mt-0.5">{submitError}</p>
-              </div>
-            </div>
-          )}
-
-          <Card className={`space-y-4 ${!isOnline ? 'opacity-50 pointer-events-none' : ''}`}> 
-            <Input
-              label="Tanggal"
-              type="date"
-              value={form.tanggal}
-              onChange={(e) => handleChange('tanggal', e.target.value)}
-            />
-
-
-            <Select
-              label="Jenis Bibit"
-              options={plantOptions}
-              value={form.bibit}
-              onChange={(e) => handleChange('bibit', e.target.value)}
-            />
-            {form.bibit === '__manual__' && (
-              <Input
-                label="Nama Bibit Baru"
-                value={manualBibit}
-                onChange={e => setManualBibit(e.target.value)}
-                placeholder="Tulis nama bibit..."
-              />
-            )}
-
-            {form.bibit && currentStok !== null && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
-                <span className="text-sm text-blue-700">
-                  📦 Stok <strong>{form.bibit}</strong> saat ini: <strong>{currentStok.toLocaleString('id-ID')}</strong> bibit
-                </span>
-              </div>
-            )}
-
-            {form.bibit && currentStok === 0 && (
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
-                <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                <span className="text-sm text-red-700">Stok <strong>{form.bibit}</strong> sudah habis!</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-3">
-              <Input
-                label="Masuk"
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                value={form.masuk}
-                onChange={(e) => handleChange('masuk', e.target.value)}
-              />
-              <Input
-                label="Keluar"
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                value={form.keluar}
-                onChange={(e) => handleChange('keluar', e.target.value)}
-              />
-              <Input
-                label="Mati"
-                type="number"
-                inputMode="numeric"
-                placeholder="0"
-                value={form.mati}
-                onChange={(e) => handleChange('mati', e.target.value)}
-              />
-            </div>
-
-            {stokWarning && (
-              <div className="flex items-start gap-2 px-3 py-2.5 rounded-lg bg-amber-50 border border-amber-300">
-                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-800">
-                  <strong>Peringatan!</strong> Keluar ({keluarVal.toLocaleString('id-ID')}) + Mati ({matiVal.toLocaleString('id-ID')}) = <strong>{totalPengurangan.toLocaleString('id-ID')}</strong> melebihi stok saat ini (<strong>{currentStok?.toLocaleString('id-ID')}</strong>).
-                </div>
-              </div>
-            )}
-
-            <Select
-              label="Sumber"
-              options={sumberOptions}
-              value={form.sumber}
-              onChange={(e) => handleChange('sumber', e.target.value)}
-            />
-
-            <Select
-              label="Tujuan"
-              options={tujuanOptions}
-              value={form.tujuan}
-              onChange={(e) => handleChange('tujuan', e.target.value)}
-            />
-
-
-            <Select
-              label="Dibuat Oleh"
-              options={dibuatOlehOptionsFull}
-              value={form.dibuatOleh}
-              onChange={(e) => handleChange('dibuatOleh', e.target.value)}
-            />
-            {form.dibuatOleh === '__manual__' && (
-              <Input
-                label="Nama Pembuat Baru"
-                value={manualDibuatOleh}
-                onChange={e => setManualDibuatOleh(e.target.value)}
-                placeholder="Tulis nama pembuat..."
-              />
-            )}
-
-
-            <Select
-              label="Driver"
-              options={driverOptionsFull}
-              value={form.driver}
-              onChange={(e) => handleChange('driver', e.target.value)}
-            />
-            {form.driver === '__manual__' && (
-              <Input
-                label="Nama Driver Baru"
-                value={manualDriver}
-                onChange={e => setManualDriver(e.target.value)}
-                placeholder="Tulis nama driver..."
-              />
-            )}
-          </Card>
-
-          {/* Fixed bottom submit */}
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 w-full max-w-[420px] p-4 bg-white/80 backdrop-blur-lg border-t border-gray-100 space-y-2">
-            {form.bibit && keluarVal > 0 && (
-              <Button
-                size="md"
-                variant="secondary"
-                icon={<FileText className="w-4 h-4" />}
-                onClick={() => {
-                  const params = new URLSearchParams({
-                    preview: '1',
-                    tanggal: form.tanggal,
-                    bibit: form.bibit,
-                    keluar: String(keluarVal),
-                    sumber: form.sumber,
-                    tujuan: form.tujuan,
-                    dibuatOleh: form.dibuatOleh,
-                    driver: form.driver,
-                  });
-                  navigate(`/surat-jalan?${params.toString()}`);
-                }}
-                className="w-full"
-              >
-                Preview Surat Jalan
-              </Button>
-            )}
-            <Button
-              size="lg"
-              loading={submitting}
-              icon={<Plus className="w-5 h-5" />}
-              onClick={async () => {
-                // Simpan manual bibit jika ada
-                let bibitVal = form.bibit;
-                if (form.bibit === '__manual__' && manualBibit.trim()) {
-                  saveManualList('manual_bibit', manualBibit.trim());
-                  bibitVal = manualBibit.trim();
-                  setInputForm({ bibit: bibitVal });
-                }
-                let dibuatOlehVal = form.dibuatOleh;
-                if (form.dibuatOleh === '__manual__' && manualDibuatOleh.trim()) {
-                  saveManualList('manual_dibuatOleh', manualDibuatOleh.trim());
-                  dibuatOlehVal = manualDibuatOleh.trim();
-                  setInputForm({ dibuatOleh: dibuatOlehVal });
-                }
-                let driverVal = form.driver;
-                if (form.driver === '__manual__' && manualDriver.trim()) {
-                  saveManualList('manual_driver', manualDriver.trim());
-                  driverVal = manualDriver.trim();
-                  setInputForm({ driver: driverVal });
-                }
-                // Pastikan field sudah terisi
-                if (!bibitVal || !isOnline) return;
-                await handleSubmit();
-              }}
-              disabled={
-                (!form.bibit || (form.bibit === '__manual__' && !manualBibit.trim())) ||
-                (!form.dibuatOleh || (form.dibuatOleh === '__manual__' && !manualDibuatOleh.trim())) ||
-                (!form.driver || (form.driver === '__manual__' && !manualDriver.trim())) ||
-                !isOnline
-              }
-              className="w-full"
-            >
-              {isOnline ? 'Simpan Data' : 'Offline — Tidak Bisa Simpan'}
-            </Button>
-          </div>
-        </>
-      )}
+      <div className="text-center text-xs text-gray-400 space-y-1 pt-8">
+        <p>Formulir otomatis & terintegrasi</p>
+        <p>✅ Data tersimpan langsung ke sistem nursery</p>
+      </div>
     </div>
   );
 }

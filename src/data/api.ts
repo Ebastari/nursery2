@@ -81,7 +81,7 @@ export interface DropdownOptions {
 
 
 export const API_URL =
-  "https://script.google.com/macros/s/AKfycbyPV84uIj-AIIExmW8DJSz4m5oW1Md7DBFwfGniim-CCCZdFOo3chx4ZXacVJz2iKD1/exec";
+  "https://script.google.com/macros/s/AKfycbxO4WFEjJVp5rzDOq0zRX3hycgB9zaZ_JB6vfM2gqxuwf7Qq46MjrojF_j1O8px4OV0/exec";
 
 let cachedRows: ApiRow[] | null = null;
 
@@ -156,7 +156,7 @@ export async function fetchApiData(): Promise<ApiRow[]> {
           // Jika data baru berbeda, update cache dan IndexedDB
           if (JSON.stringify(json.data) !== JSON.stringify(offlineRows)) {
             cachedRows = json.data;
-            try { await saveRowsToDB(json.data); } catch {}
+            try { await saveRowsToDB(json.data); } catch { /* ignore */ }
           }
         })
         .catch(() => {}); // error background fetch diabaikan
@@ -173,7 +173,7 @@ export async function fetchApiData(): Promise<ApiRow[]> {
     const json: ApiResponse = JSON.parse(text);
     if (!json.data || !Array.isArray(json.data)) throw new Error("Format response tidak sesuai");
     cachedRows = json.data;
-    try { await saveRowsToDB(json.data); } catch {}
+    try { await saveRowsToDB(json.data); } catch { /* ignore */ }
     return cachedRows;
   }
 

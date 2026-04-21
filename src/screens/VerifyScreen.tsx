@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { verifyCode } from '../data/api';
 import type { VerifyResult } from '../data/api';
 import { Html5Qrcode } from 'html5-qrcode';
+import Tesseract from 'tesseract.js';
 
 function formatTanggal(tanggal: string): string {
   const d = new Date(tanggal);
@@ -22,6 +23,41 @@ export function VerifyScreen() {
   const [scannedCode, setScannedCode] = useState('');
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handler untuk impor gambar
+  const handleImportImage = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setScanState('verifying');
+    setErrorMsg('');
+    setScannedCode('');
+    setResult(null);
+    try {
+      const { data } = await Tesseract.recognize(file, 'eng');
+      const text = data.text.trim();
+      if (text) {
+        // Coba cari kode verifikasi dari hasil OCR
+        // Misal: kode berupa string setelah 'VERIFY:'
+        let code = '';
+        const match = text.match(/VERIFY:([A-Za-z0-9\-]+)/);
+        if (match) {
+          code = match[1];
+        } else {
+          // fallback: ambil semua teks
+          code = text;
+        }
+        handleVerify(code);
+      } else {
+        setScanState('error');
+        setErrorMsg('Teks tidak terbaca dari gambar.');
+      }
+    } catch (err) {
+      setScanState('error');
+      setErrorMsg('Gagal membaca gambar.');
+    }
+    event.target.value = '';
+  };
 
   const stopScanner = async () => {
     if (scannerRef.current) {
@@ -148,9 +184,26 @@ export function VerifyScreen() {
                     Arahkan kamera ke QR Code pada Surat Jalan untuk memverifikasi keaslian dokumen.
                   </p>
                 </div>
-                <Button size="md" variant="primary" icon={<Camera className="w-4 h-4" />} onClick={startScanner}>
-                  Buka Kamera
-                </Button>
+                <div className="flex flex-col gap-2 w-full">
+                  <Button size="md" variant="primary" icon={<Camera className="w-4 h-4" />} onClick={startScanner}>
+                    Buka Kamera
+                  </Button>
+                  <Button
+                    size="md"
+                    variant="secondary"
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Impor Gambar
+                  </Button>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleImportImage}
+                    style={{ display: 'none' }}
+                  />
+                </div>
               </div>
             ) : (
               <div className="space-y-3">
